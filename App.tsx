@@ -1,17 +1,22 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Chat } from "@google/genai";
-import { createMentorChat, sendMessageStream } from './services/gemini';
-import { Message, Topic } from './types';
+import { createMentorChat, sendMessageStream, generateQuizForTopic } from './services/gemini';
+import { Message, Topic, QuizQuestion } from './types';
 import { CURRICULUM } from './constants';
 import Sidebar from './components/Sidebar';
 import MessageBubble from './components/MessageBubble';
 import CodeEditor from './components/CodeEditor';
-import { SendIcon, MenuIcon, RefreshIcon, CodeIcon } from './components/Icons';
+import QuizModal from './components/QuizModal';
+import LandingPage from './components/LandingPage';
+import { SendIcon, MenuIcon, RefreshIcon, CodeIcon, AcademicCapIcon, CheckCircleIcon, CheckIcon } from './components/Icons';
 
 // Helper to generate a unique ID
 const generateId = () => Math.random().toString(36).substring(2, 9);
 
 const App: React.FC = () => {
+  // App View State
+  const [showLanding, setShowLanding] = useState(true);
+
   // State
   const [chatSession, setChatSession] = useState<Chat | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -19,7 +24,24 @@ const App: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [currentTopic, setCurrentTopic] = useState<Topic | null>(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  
+  // Progress State
+  const [completedTopics, setCompletedTopics] = useState<string[]>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('js-master-completed');
+      return saved ? JSON.parse(saved) : [];
+    }
+    return [];
+  });
+
+  // Editor State
   const [isEditorOpen, setIsEditorOpen] = useState(false);
+  const [isEditorMaximized, setIsEditorMaximized] = useState(false);
+
+  // Quiz State
+  const [isQuizOpen, setIsQuizOpen] = useState(false);
+  const [isQuizLoading, setIsQuizLoading] = useState(false);
+  const [quizQuestions, setQuizQuestions] = useState<QuizQuestion[]>([]);
   
   // Refs
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -34,21 +56,34 @@ const App: React.FC = () => {
     scrollToBottom();
   }, [messages]);
 
-  // Initialize Chat on Mount
+  // Persist completed topics
   useEffect(() => {
-    try {
-      const chat = createMentorChat();
-      setChatSession(chat);
-      
-      // Auto-start with the first topic if none selected
-      const firstTopic = CURRICULUM[0].topics[0];
-      handleTopicSelect(firstTopic, chat);
-    } catch (e) {
-      console.error("Failed to init chat", e);
-      addSystemMessage("Error: Could not connect to Gemini API. Please check your API Key.");
+    localStorage.setItem('js-master-completed', JSON.stringify(completedTopics));
+  }, [completedTopics]);
+
+  // Initialize Chat on Enter
+  useEffect(() => {
+    // Only initialize if we are NOT on the landing page
+    if (showLanding) return;
+
+    if (!chatSession) {
+      try {
+        const chat = createMentorChat();
+        setChatSession(chat);
+        
+        // Auto-start with the first topic if none selected
+        // Only trigger this once when entering the app
+        if (!currentTopic) {
+           const firstTopic = CURRICULUM[0].topics[0];
+           handleTopicSelect(firstTopic, chat);
+        }
+      } catch (e) {
+        console.error("Failed to init chat", e);
+        addSystemMessage("Error: Could not connect to Gemini API. Please check your API Key.");
+      }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [showLanding]);
 
   const addSystemMessage = (text: string) => {
     setMessages(prev => [...prev, {
@@ -203,11 +238,74 @@ const App: React.FC = () => {
     }
   };
 
+  // Progress Handling
+  const markTopicAsComplete = (topicId: string) => {
+    if (!completedTopics.includes(topicId)) {
+      setCompletedTopics(prev => [...prev, topicId]);
+    }
+  };
+
+  const toggleTopicCompletion = (topicId: string) => {
+    if (completedTopics.includes(topicId)) {
+      setCompletedTopics(prev => prev.filter(id => id !== topicId));
+    } else {
+      setCompletedTopics(prev => [...prev, topicId]);
+    }
+  };
+
+  // Quiz Handlers
+  const handleOpenQuiz = async () => {
+    if (!currentTopic) return;
+    
+    setIsQuizOpen(true);
+    setIsQuizLoading(true);
+    
+    try {
+      const questions = await generateQuizForTopic(currentTopic.title);
+      setQuizQuestions(questions);
+    } catch (e) {
+      console.error(e);
+      // QuizModal handles empty state/error
+    } finally {
+      setIsQuizLoading(false);
+    }
+  };
+
+  const handleRetakeQuiz = () => {
+    setQuizQuestions([]);
+    handleOpenQuiz();
+  };
+
+  const handleQuizPass = () => {
+    if (currentTopic) {
+      markTopicAsComplete(currentTopic.id);
+    }
+  };
+
+  const isCurrentTopicCompleted = currentTopic ? completedTopics.includes(currentTopic.id) : false;
+
+  if (showLanding) {
+    return <LandingPage onStart={() => setShowLanding(false)} />;
+  }
+
   return (
-    <div className="flex h-screen w-full bg-slate-950 overflow-hidden">
+    <div className="flex h-[100dvh] w-full bg-slate-950 overflow-hidden animate-in fade-in duration-500">
       
+      {/* Quiz Modal Overlay */}
+      {isQuizOpen && currentTopic && (
+        <QuizModal 
+          title={currentTopic.title}
+          questions={quizQuestions}
+          isLoading={isQuizLoading}
+          onClose={() => setIsQuizOpen(false)}
+          onRetake={handleRetakeQuiz}
+          onPass={handleQuizPass}
+        />
+      )}
+
       <Sidebar 
         currentTopicId={currentTopic?.id || null}
+        completedTopicIds={completedTopics}
         onSelectTopic={(t) => handleTopicSelect(t)}
         isOpen={isSidebarOpen}
         onCloseMobile={() => setIsSidebarOpen(false)}
@@ -219,11 +317,13 @@ const App: React.FC = () => {
         {/* Chat Section */}
         <div className={`
           flex flex-col h-full transition-all duration-300 ease-in-out
-          ${isEditorOpen ? 'hidden md:flex md:w-1/2 lg:w-1/2 border-r border-slate-800' : 'w-full'}
+          ${isEditorOpen 
+            ? (isEditorMaximized ? 'hidden' : 'hidden md:flex md:w-[30%] border-r border-slate-800') 
+            : 'w-full'}
         `}>
           
           {/* Header */}
-          <header className="flex items-center justify-between px-4 py-3 border-b border-slate-800 bg-slate-900/50 backdrop-blur-md z-10">
+          <header className="flex items-center justify-between px-4 py-3 border-b border-slate-800 bg-slate-900/50 backdrop-blur-md z-10 shrink-0">
             <div className="flex items-center gap-3">
               <button 
                 onClick={() => setIsSidebarOpen(true)}
@@ -235,13 +335,32 @@ const App: React.FC = () => {
                 <h2 className="text-lg font-semibold text-white truncate">
                   {currentTopic?.title || 'Select a Topic'}
                 </h2>
-                <p className="text-xs text-slate-400 truncate">
-                  {currentTopic?.description || 'Start your journey'}
-                </p>
+                <div className="flex items-center gap-2">
+                  <p className="text-xs text-slate-400 truncate">
+                    {currentTopic?.description || 'Start your journey'}
+                  </p>
+                </div>
               </div>
             </div>
             
             <div className="flex items-center gap-2">
+              {/* Manual Completion Toggle */}
+              {currentTopic && (
+                <button
+                  onClick={() => toggleTopicCompletion(currentTopic.id)}
+                  title={isCurrentTopicCompleted ? "Mark as incomplete" : "Mark as complete"}
+                  className={`
+                    hidden sm:flex items-center justify-center p-2 rounded-full transition-colors
+                    ${isCurrentTopicCompleted 
+                      ? 'text-green-400 bg-green-900/20 hover:bg-green-900/30' 
+                      : 'text-slate-500 hover:text-slate-300 hover:bg-slate-800'
+                    }
+                  `}
+                >
+                  {isCurrentTopicCompleted ? <CheckCircleIcon className="w-5 h-5" /> : <CheckIcon className="w-5 h-5" />}
+                </button>
+              )}
+
               <button 
                 onClick={handleRestartTopic}
                 title="Restart Topic"
@@ -250,6 +369,18 @@ const App: React.FC = () => {
               >
                 <RefreshIcon className="w-5 h-5" />
               </button>
+
+              {/* Quiz Button */}
+              <button
+                onClick={handleOpenQuiz}
+                disabled={isLoading || !currentTopic}
+                className="flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium bg-indigo-600 text-white hover:bg-indigo-500 shadow-lg shadow-indigo-900/30 transition-all"
+              >
+                 <AcademicCapIcon className="w-4 h-4" />
+                 <span className="hidden lg:inline">Test Knowledge</span>
+                 <span className="lg:hidden">Quiz</span>
+              </button>
+
               <button 
                 onClick={() => setIsEditorOpen(!isEditorOpen)}
                 className={`
@@ -285,7 +416,7 @@ const App: React.FC = () => {
           </div>
 
           {/* Input Area */}
-          <div className="p-4 border-t border-slate-800 bg-slate-900">
+          <div className="p-4 border-t border-slate-800 bg-slate-900 shrink-0">
             <div className="max-w-3xl mx-auto relative flex items-end gap-2 bg-slate-800 p-2 rounded-xl border border-slate-700 focus-within:border-blue-500/50 transition-colors shadow-lg">
               <textarea
                 ref={textareaRef}
@@ -325,10 +456,17 @@ const App: React.FC = () => {
 
         {/* Editor Section */}
         <div className={`
-          ${isEditorOpen ? 'absolute inset-0 md:relative md:flex md:w-1/2 lg:w-1/2 z-20' : 'hidden'}
+          ${isEditorOpen 
+            ? (isEditorMaximized ? 'absolute inset-0 z-20 flex w-full' : 'absolute inset-0 md:relative md:flex md:w-[70%] z-20') 
+            : 'hidden'}
           transition-all duration-300
         `}>
-          <CodeEditor onCloseMobile={() => setIsEditorOpen(false)} />
+          <CodeEditor 
+            onCloseMobile={() => setIsEditorOpen(false)} 
+            isMaximized={isEditorMaximized}
+            onToggleMaximize={() => setIsEditorMaximized(!isEditorMaximized)}
+            initialCode={currentTopic?.practiceCode}
+          />
         </div>
 
       </div>

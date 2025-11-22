@@ -11,12 +11,21 @@ export interface Topic {
   title: string;
   description: string;
   promptContext: string;
+  practiceCode?: string;
 }
 
 export interface CurriculumModule {
   id: string;
   title: string;
   topics: Topic[];
+}
+
+export interface QuizQuestion {
+  id: number;
+  question: string;
+  options: string[];
+  correctAnswer: number; // Index of the correct option (0-3)
+  explanation: string;
 }
 
 export enum AppState {

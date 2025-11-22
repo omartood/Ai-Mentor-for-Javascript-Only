@@ -1,10 +1,17 @@
-import React, { useState } from 'react';
-import { PlayIcon, TrashIcon } from './Icons';
+import React, { useState, useEffect } from 'react';
+import { PlayIcon, TrashIcon, MaximizeIcon, MinimizeIcon, RefreshIcon } from './Icons';
 
 interface LogEntry {
   type: 'log' | 'error' | 'warn';
   content: string;
   timestamp: number;
+}
+
+interface CodeEditorProps {
+  onCloseMobile?: () => void;
+  isMaximized?: boolean;
+  onToggleMaximize?: () => void;
+  initialCode?: string;
 }
 
 const DEFAULT_CODE = `// Welcome to the JS Sandbox!
@@ -19,9 +26,31 @@ for (let i = 1; i <= 3; i++) {
 }
 `;
 
-const CodeEditor: React.FC<{ onCloseMobile?: () => void }> = ({ onCloseMobile }) => {
+const CodeEditor: React.FC<CodeEditorProps> = ({ 
+  onCloseMobile, 
+  isMaximized = false, 
+  onToggleMaximize,
+  initialCode 
+}) => {
   const [code, setCode] = useState(DEFAULT_CODE);
   const [logs, setLogs] = useState<LogEntry[]>([]);
+
+  // Update code when initialCode prop changes (e.g. switching topics)
+  useEffect(() => {
+    if (initialCode) {
+      setCode(initialCode);
+      setLogs([]); // Optional: clear logs when changing topics
+    }
+  }, [initialCode]);
+
+  const handleReset = () => {
+    if (initialCode) {
+      setCode(initialCode);
+    } else {
+      setCode(DEFAULT_CODE);
+    }
+    setLogs([]);
+  };
 
   const handleRun = () => {
     setLogs([]); // Clear previous logs
@@ -92,11 +121,28 @@ const CodeEditor: React.FC<{ onCloseMobile?: () => void }> = ({ onCloseMobile })
   return (
     <div className="flex flex-col h-full bg-[#1e1e1e] border-l border-slate-800 shadow-2xl">
       {/* Toolbar */}
-      <div className="flex items-center justify-between px-4 py-2 bg-[#252526] border-b border-slate-700">
+      <div className="flex items-center justify-between px-4 py-2 bg-[#252526] border-b border-slate-700 shrink-0">
         <div className="flex items-center gap-2">
           <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">Playground</span>
         </div>
         <div className="flex items-center gap-2">
+           <button 
+             onClick={handleReset}
+             className="p-1.5 text-slate-400 hover:text-white transition-colors"
+             title="Reset Code"
+           >
+             <RefreshIcon className="w-4 h-4" />
+           </button>
+           
+           {onToggleMaximize && (
+             <button 
+               onClick={onToggleMaximize}
+               className="p-1.5 text-slate-400 hover:text-white hidden md:block"
+               title={isMaximized ? "Minimize" : "Maximize"}
+             >
+               {isMaximized ? <MinimizeIcon className="w-4 h-4" /> : <MaximizeIcon className="w-4 h-4" />}
+             </button>
+           )}
            <button 
             onClick={handleRun}
             className="flex items-center gap-1.5 px-3 py-1.5 bg-green-600 hover:bg-green-500 text-white rounded text-xs font-medium transition-colors"
@@ -128,7 +174,7 @@ const CodeEditor: React.FC<{ onCloseMobile?: () => void }> = ({ onCloseMobile })
       </div>
 
       {/* Console Output */}
-      <div className="h-1/3 min-h-[150px] bg-[#0d0d0d] border-t border-slate-700 flex flex-col">
+      <div className="h-44 bg-[#0d0d0d] border-t border-slate-700 flex flex-col shrink-0">
         <div className="flex items-center justify-between px-4 py-1 bg-[#1a1a1a] border-b border-slate-800">
           <span className="text-[10px] font-bold text-slate-500 uppercase">Console</span>
           <button 

@@ -11,6 +11,20 @@
 
 ---
 
+## 📸 Application Preview
+
+| Landing Page | Main Dashboard |
+|:---:|:---:|
+| ![Landing Page](screenshots/landing.png) | ![Dashboard](screenshots/dashboard.png) |
+| *Modern, dark-themed landing page with JS branding* | *Integrated AI Chat, Sidebar, and User Profile* |
+
+| Code Playground | Logic Quiz |
+|:---:|:---:|
+| ![Playground](screenshots/playground.png) | ![Quiz](screenshots/quiz.png) |
+| *Split-screen coding environment with console* | *AI-generated logic & code assessments* |
+
+---
+
 ## 🌟 Key Features
 
 ### 🧠 AI-Powered Mentorship

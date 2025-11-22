@@ -43,15 +43,17 @@ export const sendMessageStream = async (
 export const generateQuizForTopic = async (topicTitle: string): Promise<QuizQuestion[]> => {
   const ai = getAI();
   
-  // Updated prompt for 10 questions focusing on logic and code
+  // Updated prompt for mixed questions (Concepts, Logic, Coding)
   const prompt = `
-    Create a challenging quiz about "${topicTitle}" in JavaScript. 
+    Create a comprehensive quiz about "${topicTitle}" in JavaScript. 
     Generate exactly 10 multiple-choice questions.
     
     CRITICAL INSTRUCTIONS:
-    1. Focus on **Practical Logic**, **Code Output Prediction**, and **Spotting Errors**.
-    2. Avoid simple definition questions (e.g., NOT "What is a variable?").
-    3. Instead, provide small code snippets and ask what the console log will be, or why a bug occurs.
+    You MUST provide a balanced mix of question types to test full competency:
+    
+    1. **Conceptual Mastery (~30%)**: Questions that test *why* it works or *when* to use it. (e.g., "Why prefer const over var?", "How does the Event Loop handle this?"). Avoid trivial definitions.
+    2. **Code Output Prediction (~40%)**: Provide a markdown code snippet and ask the user to predict the exact console output.
+    3. **Debugging & Logic Solving (~30%)**: Provide a buggy snippet or a logic puzzle and ask "What is the error?" or "How to fix this?".
     
     Strictly return ONLY a JSON array with the following structure for each object:
     {

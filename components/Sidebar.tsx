@@ -32,15 +32,15 @@ const Sidebar: React.FC<SidebarProps> = ({
       <aside 
         className={`
           fixed md:relative inset-y-0 left-0 z-30
-          w-72 bg-slate-900 border-r border-slate-800
+          w-72 bg-[#1e1e1e] border-r border-slate-800
           transform transition-transform duration-300 ease-in-out
           ${isOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}
           flex flex-col h-full
         `}
       >
         <div className="p-6 border-b border-slate-800 flex items-center space-x-3">
-          <div className="p-2 bg-blue-600 rounded-lg shadow-lg shadow-blue-900/20">
-            <BookIcon className="w-6 h-6 text-white" />
+          <div className="p-2 bg-[#f7df1e] rounded-lg shadow-lg shadow-yellow-500/20">
+            <span className="text-black font-bold font-mono text-lg leading-none tracking-tighter px-0.5">JS</span>
           </div>
           <div>
             <h1 className="text-xl font-bold text-white tracking-tight">JS Master</h1>
@@ -93,7 +93,7 @@ const Sidebar: React.FC<SidebarProps> = ({
                           w-full text-left px-3 py-2.5 rounded-lg text-sm transition-all duration-200
                           flex items-center justify-between group
                           ${isActive 
-                            ? 'bg-blue-600/10 text-blue-400 border border-blue-600/20' 
+                            ? 'bg-[#f7df1e]/10 text-[#f7df1e] border border-[#f7df1e]/20' 
                             : 'text-slate-400 hover:bg-slate-800 hover:text-slate-200'
                           }
                           ${isLocked ? 'cursor-not-allowed hover:bg-transparent hover:text-slate-400' : ''}

@@ -1,11 +1,12 @@
 import React from 'react';
-import { BookIcon, CodeIcon, BrainIcon, ZapIcon, LayersIcon, ChevronRightIcon, StarIcon } from './Icons';
+import { CodeIcon, BrainIcon, LayersIcon, ChevronRightIcon } from './Icons';
 
 interface LandingPageProps {
-  onStart: () => void;
+  onLoginClick: () => void;
+  onRegisterClick: () => void;
 }
 
-const LandingPage: React.FC<LandingPageProps> = ({ onStart }) => {
+const LandingPage: React.FC<LandingPageProps> = ({ onLoginClick, onRegisterClick }) => {
   return (
     <div className="min-h-screen bg-[#1e1e1e] text-slate-50 selection:bg-[#f7df1e]/30 font-sans overflow-x-hidden">
       {/* Navbar */}
@@ -23,7 +24,7 @@ const LandingPage: React.FC<LandingPageProps> = ({ onStart }) => {
             <a href="#reviews" className="hover:text-[#f7df1e] transition-colors">Success Stories</a>
           </div>
           <button 
-            onClick={onStart}
+            onClick={onLoginClick}
             className="px-5 py-2 rounded-full bg-white/10 hover:bg-white/20 text-white text-sm font-medium transition-colors border border-white/5"
           >
             Log In
@@ -56,7 +57,7 @@ const LandingPage: React.FC<LandingPageProps> = ({ onStart }) => {
             
             <div className="flex flex-col sm:flex-row gap-4">
               <button 
-                onClick={onStart}
+                onClick={onRegisterClick}
                 className="flex items-center justify-center gap-2 px-8 py-4 rounded-full bg-[#f7df1e] hover:bg-[#e5ce1b] text-black font-bold text-lg shadow-[0_0_20px_rgba(247,223,30,0.4)] transition-all transform hover:scale-105 active:scale-95"
               >
                 Start Learning Free
@@ -199,7 +200,7 @@ const LandingPage: React.FC<LandingPageProps> = ({ onStart }) => {
             <br className="hidden md:block" /> No setup required. Just click start.
           </p>
           <button 
-            onClick={onStart}
+            onClick={onRegisterClick}
             className="px-10 py-5 rounded-full bg-black text-white hover:bg-slate-800 font-bold text-xl shadow-2xl transition-transform hover:scale-105"
           >
             Launch Application

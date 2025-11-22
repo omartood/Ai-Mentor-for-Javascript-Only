@@ -34,3 +34,15 @@ export enum AppState {
   CHATTING = 'CHATTING',
   ERROR = 'ERROR'
 }
+
+export interface User {
+  id: string;
+  name: string;
+  email: string;
+  createdAt: number;
+}
+
+export interface UserProgress {
+  completedTopicIds: string[];
+  quizScores: Record<string, number>; // topicId -> score
+}

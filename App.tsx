@@ -1,14 +1,18 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Chat } from "@google/genai";
 import { createMentorChat, sendMessageStream, generateQuizForTopic } from './services/gemini';
-import { Message, Topic, QuizQuestion } from './types';
+import { authService } from './services/auth';
+import { dbService } from './services/db';
+import { Message, Topic, QuizQuestion, User } from './types';
 import { CURRICULUM } from './constants';
 import Sidebar from './components/Sidebar';
 import MessageBubble from './components/MessageBubble';
 import CodeEditor from './components/CodeEditor';
 import QuizModal from './components/QuizModal';
 import LandingPage from './components/LandingPage';
-import { SendIcon, MenuIcon, RefreshIcon, CodeIcon, AcademicCapIcon, CheckCircleIcon, CheckIcon } from './components/Icons';
+import AuthModal from './components/AuthModal';
+import UserProfileModal from './components/UserProfileModal';
+import { SendIcon, MenuIcon, RefreshIcon, CodeIcon, AcademicCapIcon, CheckCircleIcon, CheckIcon, UserIcon } from './components/Icons';
 
 // Helper to generate a unique ID
 const generateId = () => Math.random().toString(36).substring(2, 9);
@@ -16,8 +20,16 @@ const generateId = () => Math.random().toString(36).substring(2, 9);
 const App: React.FC = () => {
   // App View State
   const [showLanding, setShowLanding] = useState(true);
+  
+  // Auth State
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
+  const [authModalView, setAuthModalView] = useState<'login' | 'register'>('login');
+  
+  // Profile State
+  const [isProfileOpen, setIsProfileOpen] = useState(false);
 
-  // State
+  // App State
   const [chatSession, setChatSession] = useState<Chat | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputValue, setInputValue] = useState('');
@@ -26,13 +38,7 @@ const App: React.FC = () => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   
   // Progress State
-  const [completedTopics, setCompletedTopics] = useState<string[]>(() => {
-    if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem('js-master-completed');
-      return saved ? JSON.parse(saved) : [];
-    }
-    return [];
-  });
+  const [completedTopics, setCompletedTopics] = useState<string[]>([]);
 
   // Editor State
   const [isEditorOpen, setIsEditorOpen] = useState(false);
@@ -56,12 +62,18 @@ const App: React.FC = () => {
     scrollToBottom();
   }, [messages]);
 
-  // Persist completed topics
+  // Check for existing session on load
   useEffect(() => {
-    localStorage.setItem('js-master-completed', JSON.stringify(completedTopics));
-  }, [completedTopics]);
+    const user = authService.getCurrentUser();
+    if (user) {
+      setCurrentUser(user);
+      setShowLanding(false);
+      const progress = dbService.getUserProgress(user.id);
+      setCompletedTopics(progress.completedTopicIds);
+    }
+  }, []);
 
-  // Initialize Chat on Enter
+  // Initialize Chat on App Start (Post-Login)
   useEffect(() => {
     // Only initialize if we are NOT on the landing page
     if (showLanding) return;
@@ -85,6 +97,23 @@ const App: React.FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [showLanding]);
 
+  const handleAuthSuccess = (user: User) => {
+    setCurrentUser(user);
+    const progress = dbService.getUserProgress(user.id);
+    setCompletedTopics(progress.completedTopicIds);
+    setShowLanding(false);
+  };
+
+  const handleLogout = () => {
+    authService.logout();
+    setCurrentUser(null);
+    setShowLanding(true);
+    setChatSession(null);
+    setMessages([]);
+    setCompletedTopics([]);
+    setIsProfileOpen(false);
+  };
+
   const addSystemMessage = (text: string) => {
     setMessages(prev => [...prev, {
       id: generateId(),
@@ -98,14 +127,13 @@ const App: React.FC = () => {
     if (!activeChat) return;
     
     setCurrentTopic(topic);
-    setMessages([]); // Clear visible history for the new topic visually (optional, keeps context clean)
+    setMessages([]); // Clear visible history for the new topic visually
     setIsLoading(true);
 
     try {
       // Prompt the AI to start the lesson
       const prompt = `I am ready to learn about: "${topic.title}". Context: ${topic.promptContext}. Please introduce this topic and give me a simple example.`;
       
-      // Add a placeholder message for streaming
       const msgId = generateId();
       setMessages([{
         id: msgId,
@@ -119,7 +147,7 @@ const App: React.FC = () => {
       
       let fullText = '';
       for await (const chunk of stream) {
-        const textChunk = chunk.text || ''; // Access .text property directly
+        const textChunk = chunk.text || ''; 
         fullText += textChunk;
         
         setMessages(prev => {
@@ -132,7 +160,6 @@ const App: React.FC = () => {
         });
       }
 
-      // Finalize message
       setMessages(prev => {
         const newMsgs = [...prev];
         const lastMsg = newMsgs[newMsgs.length - 1];
@@ -156,12 +183,10 @@ const App: React.FC = () => {
     const userText = inputValue.trim();
     setInputValue('');
     
-    // Reset textarea height
     if (textareaRef.current) {
       textareaRef.current.style.height = 'auto';
     }
 
-    // Add user message
     const userMsgId = generateId();
     setMessages(prev => [...prev, {
       id: userMsgId,
@@ -173,7 +198,6 @@ const App: React.FC = () => {
     setIsLoading(true);
 
     try {
-      // Add placeholder for AI response
       const aiMsgId = generateId();
       setMessages(prev => [...prev, {
         id: aiMsgId,
@@ -187,7 +211,7 @@ const App: React.FC = () => {
 
       let fullText = '';
       for await (const chunk of stream) {
-        const textChunk = chunk.text || ''; // Access .text property directly
+        const textChunk = chunk.text || ''; 
         fullText += textChunk;
         
         setMessages(prev => {
@@ -200,7 +224,6 @@ const App: React.FC = () => {
         });
       }
 
-      // Finalize
       setMessages(prev => {
         const newMsgs = [...prev];
         const lastMsg = newMsgs[newMsgs.length - 1];
@@ -227,7 +250,6 @@ const App: React.FC = () => {
 
   const handleTextareaInput = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setInputValue(e.target.value);
-    // Auto-resize
     e.target.style.height = 'auto';
     e.target.style.height = `${e.target.scrollHeight}px`;
   };
@@ -238,19 +260,10 @@ const App: React.FC = () => {
     }
   };
 
-  // Progress Handling
-  const markTopicAsComplete = (topicId: string) => {
-    if (!completedTopics.includes(topicId)) {
-      setCompletedTopics(prev => [...prev, topicId]);
-    }
-  };
-
   const toggleTopicCompletion = (topicId: string) => {
-    if (completedTopics.includes(topicId)) {
-      setCompletedTopics(prev => prev.filter(id => id !== topicId));
-    } else {
-      setCompletedTopics(prev => [...prev, topicId]);
-    }
+    if (!currentUser) return;
+    const progress = dbService.toggleTopicComplete(currentUser.id, topicId);
+    setCompletedTopics([...progress.completedTopicIds]);
   };
 
   // Quiz Handlers
@@ -265,7 +278,6 @@ const App: React.FC = () => {
       setQuizQuestions(questions);
     } catch (e) {
       console.error(e);
-      // QuizModal handles empty state/error
     } finally {
       setIsQuizLoading(false);
     }
@@ -276,201 +288,235 @@ const App: React.FC = () => {
     handleOpenQuiz();
   };
 
-  const handleQuizPass = () => {
-    if (currentTopic) {
-      markTopicAsComplete(currentTopic.id);
+  // Updated to accept score
+  const handleQuizPass = (score: number) => {
+    if (currentTopic && currentUser) {
+      // Save both completion AND score
+      const progress = dbService.saveQuizScore(currentUser.id, currentTopic.id, score);
+      setCompletedTopics([...progress.completedTopicIds]);
     }
   };
 
   const isCurrentTopicCompleted = currentTopic ? completedTopics.includes(currentTopic.id) : false;
 
-  if (showLanding) {
-    return <LandingPage onStart={() => setShowLanding(false)} />;
-  }
-
   return (
-    <div className="flex h-[100dvh] w-full bg-slate-950 overflow-hidden animate-in fade-in duration-500">
-      
-      {/* Quiz Modal Overlay */}
-      {isQuizOpen && currentTopic && (
-        <QuizModal 
-          title={currentTopic.title}
-          questions={quizQuestions}
-          isLoading={isQuizLoading}
-          onClose={() => setIsQuizOpen(false)}
-          onRetake={handleRetakeQuiz}
-          onPass={handleQuizPass}
-        />
-      )}
-
-      <Sidebar 
-        currentTopicId={currentTopic?.id || null}
-        completedTopicIds={completedTopics}
-        onSelectTopic={(t) => handleTopicSelect(t)}
-        isOpen={isSidebarOpen}
-        onCloseMobile={() => setIsSidebarOpen(false)}
+    <>
+      <AuthModal 
+        isOpen={isAuthModalOpen} 
+        onClose={() => setIsAuthModalOpen(false)}
+        initialView={authModalView}
+        onSuccess={handleAuthSuccess}
       />
 
-      {/* Main Content Area (Split) */}
-      <div className="flex-1 flex h-full relative w-full">
-        
-        {/* Chat Section */}
-        <div className={`
-          flex flex-col h-full transition-all duration-300 ease-in-out
-          ${isEditorOpen 
-            ? (isEditorMaximized ? 'hidden' : 'hidden md:flex md:w-[30%] border-r border-slate-800') 
-            : 'w-full'}
-        `}>
+      <UserProfileModal 
+        isOpen={isProfileOpen}
+        onClose={() => setIsProfileOpen(false)}
+        user={currentUser}
+        onLogout={handleLogout}
+      />
+
+      {showLanding ? (
+        <LandingPage 
+          onLoginClick={() => {
+            setAuthModalView('login');
+            setIsAuthModalOpen(true);
+          }}
+          onRegisterClick={() => {
+            setAuthModalView('register');
+            setIsAuthModalOpen(true);
+          }}
+        />
+      ) : (
+        <div className="flex h-[100dvh] w-full bg-slate-950 overflow-hidden animate-in fade-in duration-500">
           
-          {/* Header */}
-          <header className="flex items-center justify-between px-4 py-3 border-b border-slate-800 bg-slate-900/50 backdrop-blur-md z-10 shrink-0">
-            <div className="flex items-center gap-3">
-              <button 
-                onClick={() => setIsSidebarOpen(true)}
-                className="p-2 -ml-2 md:hidden text-slate-400 hover:text-white"
-              >
-                <MenuIcon className="w-6 h-6" />
-              </button>
-              <div className="overflow-hidden">
-                <h2 className="text-lg font-semibold text-white truncate">
-                  {currentTopic?.title || 'Select a Topic'}
-                </h2>
+          {isQuizOpen && currentTopic && (
+            <QuizModal 
+              title={currentTopic.title}
+              questions={quizQuestions}
+              isLoading={isQuizLoading}
+              onClose={() => setIsQuizOpen(false)}
+              onRetake={handleRetakeQuiz}
+              onPass={handleQuizPass}
+            />
+          )}
+
+          <Sidebar 
+            currentTopicId={currentTopic?.id || null}
+            completedTopicIds={completedTopics}
+            onSelectTopic={(t) => handleTopicSelect(t)}
+            isOpen={isSidebarOpen}
+            onCloseMobile={() => setIsSidebarOpen(false)}
+          />
+
+          <div className="flex-1 flex h-full relative w-full">
+            
+            {/* Chat Section */}
+            <div className={`
+              flex flex-col h-full transition-all duration-300 ease-in-out
+              ${isEditorOpen 
+                ? (isEditorMaximized ? 'hidden' : 'hidden md:flex md:w-[30%] border-r border-slate-800') 
+                : 'w-full'}
+            `}>
+              
+              {/* Header */}
+              <header className="flex items-center justify-between px-4 py-3 border-b border-slate-800 bg-slate-900/50 backdrop-blur-md z-10 shrink-0">
+                <div className="flex items-center gap-3">
+                  <button 
+                    onClick={() => setIsSidebarOpen(true)}
+                    className="p-2 -ml-2 md:hidden text-slate-400 hover:text-white"
+                  >
+                    <MenuIcon className="w-6 h-6" />
+                  </button>
+                  <div className="overflow-hidden">
+                    <div className="flex items-center gap-2">
+                      <h2 className="text-lg font-semibold text-white truncate">
+                        {currentTopic?.title || 'Select a Topic'}
+                      </h2>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button 
+                        onClick={() => setIsProfileOpen(true)}
+                        className="text-xs flex items-center gap-1.5 text-slate-400 hover:text-white transition-colors group"
+                      >
+                         <div className="w-5 h-5 bg-slate-800 rounded-full flex items-center justify-center border border-slate-700 group-hover:border-[#f7df1e]">
+                            <UserIcon className="w-3 h-3" />
+                         </div>
+                         <span className="text-slate-500 group-hover:text-slate-300">Logged in as</span>
+                         <span className="text-[#f7df1e] font-medium">{currentUser?.name}</span>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+                
                 <div className="flex items-center gap-2">
-                  <p className="text-xs text-slate-400 truncate">
-                    {currentTopic?.description || 'Start your journey'}
-                  </p>
+                  {/* Manual Completion Toggle */}
+                  {currentTopic && (
+                    <button
+                      onClick={() => toggleTopicCompletion(currentTopic.id)}
+                      title={isCurrentTopicCompleted ? "Mark as incomplete" : "Mark as complete"}
+                      className={`
+                        hidden sm:flex items-center justify-center p-2 rounded-full transition-colors
+                        ${isCurrentTopicCompleted 
+                          ? 'text-green-400 bg-green-900/20 hover:bg-green-900/30' 
+                          : 'text-slate-500 hover:text-slate-300 hover:bg-slate-800'
+                        }
+                      `}
+                    >
+                      {isCurrentTopicCompleted ? <CheckCircleIcon className="w-5 h-5" /> : <CheckIcon className="w-5 h-5" />}
+                    </button>
+                  )}
+
+                  <button 
+                    onClick={handleRestartTopic}
+                    title="Restart Topic"
+                    disabled={isLoading || !currentTopic}
+                    className="p-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-full transition-colors disabled:opacity-50 hidden sm:block"
+                  >
+                    <RefreshIcon className="w-5 h-5" />
+                  </button>
+
+                  <button
+                    onClick={handleOpenQuiz}
+                    disabled={isLoading || !currentTopic}
+                    className="flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium bg-indigo-600 text-white hover:bg-indigo-500 shadow-lg shadow-indigo-900/30 transition-all"
+                  >
+                     <AcademicCapIcon className="w-4 h-4" />
+                     <span className="hidden lg:inline">Test Knowledge</span>
+                     <span className="lg:hidden">Quiz</span>
+                  </button>
+
+                  <button 
+                    onClick={() => setIsEditorOpen(!isEditorOpen)}
+                    className={`
+                      flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium transition-all
+                      ${isEditorOpen 
+                        ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/30' 
+                        : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+                      }
+                    `}
+                  >
+                    <CodeIcon className="w-4 h-4" />
+                    <span className="hidden sm:inline">{isEditorOpen ? 'Hide Code' : 'Practice Code'}</span>
+                    <span className="sm:hidden">{isEditorOpen ? 'Close' : 'Code'}</span>
+                  </button>
+                </div>
+              </header>
+
+              {/* Chat Messages */}
+              <div className="flex-1 overflow-y-auto p-4 md:p-6 scroll-smooth bg-slate-950">
+                <div className="max-w-3xl mx-auto">
+                  {messages.length === 0 && !isLoading && (
+                    <div className="text-center mt-20 text-slate-500">
+                      <p>Select a topic from the sidebar to begin.</p>
+                    </div>
+                  )}
+                  
+                  {messages.map((msg) => (
+                    <MessageBubble key={msg.id} message={msg} />
+                  ))}
+                  
+                  <div ref={messagesEndRef} />
+                </div>
+              </div>
+
+              {/* Input Area */}
+              <div className="p-4 border-t border-slate-800 bg-slate-900 shrink-0">
+                <div className="max-w-3xl mx-auto relative flex items-end gap-2 bg-slate-800 p-2 rounded-xl border border-slate-700 focus-within:border-blue-500/50 transition-colors shadow-lg">
+                  <textarea
+                    ref={textareaRef}
+                    value={inputValue}
+                    onChange={handleTextareaInput}
+                    onKeyDown={handleKeyDown}
+                    placeholder="Ask a question or type code..."
+                    className="w-full bg-transparent text-slate-200 placeholder-slate-500 text-sm md:text-base p-2 max-h-48 min-h-[44px] resize-none focus:outline-none scrollbar-hide"
+                    rows={1}
+                    disabled={isLoading}
+                  />
+                  <button
+                    onClick={handleSendMessage}
+                    disabled={!inputValue.trim() || isLoading}
+                    className={`
+                      p-2.5 rounded-lg flex-shrink-0 mb-0.5 transition-all duration-200
+                      ${!inputValue.trim() || isLoading 
+                        ? 'bg-slate-700 text-slate-500 cursor-not-allowed' 
+                        : 'bg-blue-600 text-white hover:bg-blue-500 shadow-lg shadow-blue-900/20'
+                      }
+                    `}
+                  >
+                    {isLoading ? (
+                      <span className="block w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
+                    ) : (
+                      <SendIcon className="w-5 h-5" />
+                    )}
+                  </button>
+                </div>
+                <div className="max-w-3xl mx-auto mt-2 text-center">
+                   <p className="text-[10px] text-slate-500">
+                     AI can make mistakes. Review generated code.
+                   </p>
                 </div>
               </div>
             </div>
-            
-            <div className="flex items-center gap-2">
-              {/* Manual Completion Toggle */}
-              {currentTopic && (
-                <button
-                  onClick={() => toggleTopicCompletion(currentTopic.id)}
-                  title={isCurrentTopicCompleted ? "Mark as incomplete" : "Mark as complete"}
-                  className={`
-                    hidden sm:flex items-center justify-center p-2 rounded-full transition-colors
-                    ${isCurrentTopicCompleted 
-                      ? 'text-green-400 bg-green-900/20 hover:bg-green-900/30' 
-                      : 'text-slate-500 hover:text-slate-300 hover:bg-slate-800'
-                    }
-                  `}
-                >
-                  {isCurrentTopicCompleted ? <CheckCircleIcon className="w-5 h-5" /> : <CheckIcon className="w-5 h-5" />}
-                </button>
-              )}
 
-              <button 
-                onClick={handleRestartTopic}
-                title="Restart Topic"
-                disabled={isLoading || !currentTopic}
-                className="p-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-full transition-colors disabled:opacity-50 hidden sm:block"
-              >
-                <RefreshIcon className="w-5 h-5" />
-              </button>
-
-              {/* Quiz Button */}
-              <button
-                onClick={handleOpenQuiz}
-                disabled={isLoading || !currentTopic}
-                className="flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium bg-indigo-600 text-white hover:bg-indigo-500 shadow-lg shadow-indigo-900/30 transition-all"
-              >
-                 <AcademicCapIcon className="w-4 h-4" />
-                 <span className="hidden lg:inline">Test Knowledge</span>
-                 <span className="lg:hidden">Quiz</span>
-              </button>
-
-              <button 
-                onClick={() => setIsEditorOpen(!isEditorOpen)}
-                className={`
-                  flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium transition-all
-                  ${isEditorOpen 
-                    ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/30' 
-                    : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
-                  }
-                `}
-              >
-                <CodeIcon className="w-4 h-4" />
-                <span className="hidden sm:inline">{isEditorOpen ? 'Hide Code' : 'Practice Code'}</span>
-                <span className="sm:hidden">{isEditorOpen ? 'Close' : 'Code'}</span>
-              </button>
-            </div>
-          </header>
-
-          {/* Chat Messages */}
-          <div className="flex-1 overflow-y-auto p-4 md:p-6 scroll-smooth bg-slate-950">
-            <div className="max-w-3xl mx-auto">
-              {messages.length === 0 && !isLoading && (
-                <div className="text-center mt-20 text-slate-500">
-                  <p>Select a topic from the sidebar to begin.</p>
-                </div>
-              )}
-              
-              {messages.map((msg) => (
-                <MessageBubble key={msg.id} message={msg} />
-              ))}
-              
-              <div ref={messagesEndRef} />
-            </div>
-          </div>
-
-          {/* Input Area */}
-          <div className="p-4 border-t border-slate-800 bg-slate-900 shrink-0">
-            <div className="max-w-3xl mx-auto relative flex items-end gap-2 bg-slate-800 p-2 rounded-xl border border-slate-700 focus-within:border-blue-500/50 transition-colors shadow-lg">
-              <textarea
-                ref={textareaRef}
-                value={inputValue}
-                onChange={handleTextareaInput}
-                onKeyDown={handleKeyDown}
-                placeholder="Ask a question or type code..."
-                className="w-full bg-transparent text-slate-200 placeholder-slate-500 text-sm md:text-base p-2 max-h-48 min-h-[44px] resize-none focus:outline-none scrollbar-hide"
-                rows={1}
-                disabled={isLoading}
+            {/* Editor Section */}
+            <div className={`
+              ${isEditorOpen 
+                ? (isEditorMaximized ? 'absolute inset-0 z-20 flex w-full' : 'absolute inset-0 md:relative md:flex md:w-[70%] z-20') 
+                : 'hidden'}
+              transition-all duration-300
+            `}>
+              <CodeEditor 
+                onCloseMobile={() => setIsEditorOpen(false)} 
+                isMaximized={isEditorMaximized}
+                onToggleMaximize={() => setIsEditorMaximized(!isEditorMaximized)}
+                initialCode={currentTopic?.practiceCode}
               />
-              <button
-                onClick={handleSendMessage}
-                disabled={!inputValue.trim() || isLoading}
-                className={`
-                  p-2.5 rounded-lg flex-shrink-0 mb-0.5 transition-all duration-200
-                  ${!inputValue.trim() || isLoading 
-                    ? 'bg-slate-700 text-slate-500 cursor-not-allowed' 
-                    : 'bg-blue-600 text-white hover:bg-blue-500 shadow-lg shadow-blue-900/20'
-                  }
-                `}
-              >
-                {isLoading ? (
-                  <span className="block w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
-                ) : (
-                  <SendIcon className="w-5 h-5" />
-                )}
-              </button>
             </div>
-            <div className="max-w-3xl mx-auto mt-2 text-center">
-               <p className="text-[10px] text-slate-500">
-                 AI can make mistakes. Review generated code.
-               </p>
-            </div>
+
           </div>
         </div>
-
-        {/* Editor Section */}
-        <div className={`
-          ${isEditorOpen 
-            ? (isEditorMaximized ? 'absolute inset-0 z-20 flex w-full' : 'absolute inset-0 md:relative md:flex md:w-[70%] z-20') 
-            : 'hidden'}
-          transition-all duration-300
-        `}>
-          <CodeEditor 
-            onCloseMobile={() => setIsEditorOpen(false)} 
-            isMaximized={isEditorMaximized}
-            onToggleMaximize={() => setIsEditorMaximized(!isEditorMaximized)}
-            initialCode={currentTopic?.practiceCode}
-          />
-        </div>
-
-      </div>
-    </div>
+      )}
+    </>
   );
 };
 

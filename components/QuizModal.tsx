@@ -7,7 +7,7 @@ interface QuizModalProps {
   questions: QuizQuestion[];
   onClose: () => void;
   onRetake: () => void;
-  onPass?: () => void;
+  onPass?: (score: number) => void;
   isLoading: boolean;
 }
 
@@ -24,7 +24,7 @@ const QuizModal: React.FC<QuizModalProps> = ({ title, questions, onClose, onReta
       const percentage = Math.round((score / questions.length) * 100);
       // Updated passing score to 50%
       if (percentage >= 50) {
-        onPass();
+        onPass(Math.round(percentage)); // Pass the percentage score
       }
     }
   }, [showResults, score, questions.length, onPass]);

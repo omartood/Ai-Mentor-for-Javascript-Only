@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { PlayIcon, TrashIcon, MaximizeIcon, MinimizeIcon, RefreshIcon } from './Icons';
 
 interface LogEntry {
@@ -8,7 +8,7 @@ interface LogEntry {
 }
 
 interface CodeEditorProps {
-  onCloseMobile?: () => void;
+  onClose?: () => void;
   isMaximized?: boolean;
   onToggleMaximize?: () => void;
   initialCode?: string;
@@ -24,78 +24,84 @@ console.log(greeting);
 for (let i = 1; i <= 3; i++) {
   console.log("Count: " + i);
 }
+
+// Example: Async
+setTimeout(() => {
+  console.log("Async hello after 1s!");
+}, 1000);
 `;
 
 const CodeEditor: React.FC<CodeEditorProps> = ({ 
-  onCloseMobile, 
+  onClose, 
   isMaximized = false, 
   onToggleMaximize,
   initialCode 
 }) => {
   const [code, setCode] = useState(DEFAULT_CODE);
   const [logs, setLogs] = useState<LogEntry[]>([]);
+  
+  // Refs for scroll syncing
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const preRef = useRef<HTMLPreElement>(null);
 
-  // Update code when initialCode prop changes (e.g. switching topics)
+  // Update code when initialCode prop changes
   useEffect(() => {
     if (initialCode) {
       setCode(initialCode);
-      setLogs([]); // Optional: clear logs when changing topics
+      setLogs([]); 
     }
   }, [initialCode]);
 
-  const handleReset = () => {
-    if (initialCode) {
-      setCode(initialCode);
-    } else {
-      setCode(DEFAULT_CODE);
+  // Handle Syntax Highlighting (Prism)
+  useEffect(() => {
+    if ((window as any).Prism && preRef.current) {
+      (window as any).Prism.highlightElement(preRef.current.querySelector('code'));
     }
+  }, [code]);
+
+  const handleReset = () => {
+    setCode(initialCode || DEFAULT_CODE);
     setLogs([]);
   };
 
-  const handleRun = () => {
-    setLogs([]); // Clear previous logs
-    const newLogs: LogEntry[] = [];
-
-    // Mock Console
-    const mockConsole = {
-      log: (...args: any[]) => {
-        newLogs.push({ 
-            type: 'log', 
-            content: args.map(arg => typeof arg === 'object' ? JSON.stringify(arg, null, 2) : String(arg)).join(' '), 
-            timestamp: Date.now() 
-        });
-      },
-      error: (...args: any[]) => {
-        newLogs.push({ 
-            type: 'error', 
-            content: args.map(String).join(' '), 
-            timestamp: Date.now() 
-        });
-      },
-      warn: (...args: any[]) => {
-        newLogs.push({ 
-            type: 'warn', 
-            content: args.map(String).join(' '), 
-            timestamp: Date.now() 
-        });
+  const addLog = (type: 'log' | 'error' | 'warn', args: any[]) => {
+    const content = args.map(arg => {
+      if (typeof arg === 'object') {
+        try {
+          return JSON.stringify(arg, null, 2);
+        } catch (e) {
+          return String(arg);
+        }
       }
+      return String(arg);
+    }).join(' ');
+
+    setLogs(prev => [...prev, {
+      type,
+      content,
+      timestamp: Date.now()
+    }]);
+  };
+
+  const handleRun = async () => {
+    setLogs([]); // Clear logs on start
+    
+    const mockConsole = {
+      log: (...args: any[]) => addLog('log', args),
+      error: (...args: any[]) => addLog('error', args),
+      warn: (...args: any[]) => addLog('warn', args)
     };
 
     try {
-      // Create a function from the code string
-      // We pass 'console' as an argument to shadow the global console
-      // eslint-disable-next-line no-new-func
-      const runScript = new Function('console', code);
-      runScript(mockConsole);
+      // Use AsyncFunction to allow top-level await
+      const AsyncFunction = Object.getPrototypeOf(async function(){}).constructor;
+      // Pass 'console' to shadow the global console
+      const runScript = new AsyncFunction('console', code);
+      
+      await runScript(mockConsole);
     } catch (err: any) {
-      newLogs.push({ 
-          type: 'error', 
-          content: err.toString(), 
-          timestamp: Date.now() 
-      });
+      addLog('error', [err.toString()]);
     }
-
-    setLogs(newLogs);
   };
 
   const handleClearConsole = () => setLogs([]);
@@ -107,19 +113,43 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
       const end = e.currentTarget.selectionEnd;
       const value = e.currentTarget.value;
       
-      setCode(value.substring(0, start) + '  ' + value.substring(end));
+      const newCode = value.substring(0, start) + '  ' + value.substring(end);
+      setCode(newCode);
       
-      // Need to wait for render to update cursor position, simplified here
+      // Move cursor
       setTimeout(() => {
-          if (e.target instanceof HTMLTextAreaElement) {
-              e.target.selectionStart = e.target.selectionEnd = start + 2;
+          if (textareaRef.current) {
+              textareaRef.current.selectionStart = textareaRef.current.selectionEnd = start + 2;
           }
       }, 0);
     }
   };
 
+  // Sync scrolling between textarea and pre
+  const handleScroll = () => {
+    if (textareaRef.current && preRef.current) {
+      preRef.current.scrollTop = textareaRef.current.scrollTop;
+      preRef.current.scrollLeft = textareaRef.current.scrollLeft;
+    }
+  };
+
+  const handleContainerClick = () => {
+    textareaRef.current?.focus();
+  };
+
+  // Shared styles to ensure perfect alignment between the textarea (caret) and pre (highlighting)
+  const editorStyle: React.CSSProperties = {
+    fontFamily: '"Fira Code", monospace',
+    fontSize: '14px',
+    lineHeight: '1.5',
+    whiteSpace: 'pre',
+    padding: '1rem',
+    margin: 0,
+    border: 0,
+  };
+
   return (
-    <div className="flex flex-col h-full bg-[#1e1e1e] border-l border-slate-800 shadow-2xl">
+    <div className="flex flex-col h-full bg-[#1e1e1e] border-l border-slate-800 shadow-2xl w-full">
       {/* Toolbar */}
       <div className="flex items-center justify-between px-4 py-2 bg-[#252526] border-b border-slate-700 shrink-0">
         <div className="flex items-center gap-2">
@@ -145,58 +175,87 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
            )}
            <button 
             onClick={handleRun}
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-green-600 hover:bg-green-500 text-white rounded text-xs font-medium transition-colors"
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-green-600 hover:bg-green-500 text-white rounded text-xs font-medium transition-colors shadow-lg shadow-green-900/20"
           >
             <PlayIcon className="w-3 h-3" />
             Run
           </button>
-           {onCloseMobile && (
+           {onClose && (
             <button 
-              onClick={onCloseMobile}
-              className="md:hidden px-3 py-1.5 text-slate-400 hover:text-white text-xs"
+              onClick={onClose}
+              className="ml-2 px-3 py-1.5 text-slate-400 hover:text-white hover:bg-slate-700 rounded text-xs transition-colors"
             >
-              Close
+              Hide Code
             </button>
           )}
         </div>
       </div>
 
-      {/* Editor Area */}
-      <div className="flex-1 relative">
+      {/* Editor Area with Syntax Highlighting Overlay */}
+      <div 
+        className="flex-1 relative overflow-hidden group bg-[#1e1e1e] cursor-text" 
+        onClick={handleContainerClick}
+      >
+        {/* Layer 1: Syntax Highlighting (Background) - Hidden on Mobile for stability */}
+        <pre 
+          ref={preRef}
+          aria-hidden="true"
+          className="absolute inset-0 pointer-events-none overflow-hidden text-left text-slate-300 hidden md:block"
+          style={editorStyle}
+        >
+          <code className="language-javascript">
+            {code}
+            {/* Add a trailing newline to ensure the last line renders correctly if empty */}
+            {'\n'}
+          </code>
+        </pre>
+
+        {/* Layer 2: Editing (Foreground) */}
         <textarea
+          ref={textareaRef}
           value={code}
           onChange={(e) => setCode(e.target.value)}
           onKeyDown={handleKeyDown}
-          className="w-full h-full p-4 bg-[#1e1e1e] text-slate-300 font-mono text-sm resize-none focus:outline-none leading-relaxed"
+          onScroll={handleScroll}
+          // On mobile, text is white (visible). On desktop, transparent (uses pre layer).
+          className="absolute inset-0 w-full h-full bg-transparent text-white md:text-transparent caret-white resize-none focus:outline-none z-10 selection:bg-blue-500/30 overflow-auto"
+          style={editorStyle}
           spellCheck={false}
-          placeholder="// Write JavaScript here..."
+          autoCapitalize="off"
+          autoComplete="off"
+          autoCorrect="off"
         />
       </div>
 
       {/* Console Output */}
       <div className="h-44 bg-[#0d0d0d] border-t border-slate-700 flex flex-col shrink-0">
-        <div className="flex items-center justify-between px-4 py-1 bg-[#1a1a1a] border-b border-slate-800">
-          <span className="text-[10px] font-bold text-slate-500 uppercase">Console</span>
+        <div className="flex items-center justify-between px-4 py-1.5 bg-[#1a1a1a] border-b border-slate-800">
+          <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Console Output</span>
           <button 
             onClick={handleClearConsole}
-            className="p-1 text-slate-500 hover:text-slate-300"
+            className="p-1 text-slate-500 hover:text-slate-300 transition-colors"
             title="Clear Console"
           >
             <TrashIcon className="w-3 h-3" />
           </button>
         </div>
-        <div className="flex-1 p-4 overflow-y-auto font-mono text-xs space-y-1">
+        <div className="flex-1 p-4 overflow-y-auto font-mono text-xs space-y-1.5 scrollbar-thin scrollbar-thumb-slate-800">
           {logs.length === 0 ? (
-            <span className="text-slate-600 italic">// Output will appear here</span>
+            <span className="text-slate-700 italic select-none">// Output will appear here...</span>
           ) : (
             logs.map((log, idx) => (
               <div key={idx} className={`
-                ${log.type === 'error' ? 'text-red-400' : ''}
-                ${log.type === 'warn' ? 'text-yellow-400' : ''}
+                font-medium break-all whitespace-pre-wrap border-b border-slate-900 pb-1
+                ${log.type === 'error' ? 'text-red-400 bg-red-900/10 -mx-4 px-4 py-1' : ''}
+                ${log.type === 'warn' ? 'text-yellow-400 bg-yellow-900/10 -mx-4 px-4 py-1' : ''}
                 ${log.type === 'log' ? 'text-slate-300' : ''}
-                break-all whitespace-pre-wrap border-b border-slate-800/50 pb-1 mb-1
               `}>
-                <span className="opacity-50 mr-2">
+                {log.type !== 'log' && (
+                  <span className="uppercase text-[9px] opacity-70 mr-2 border px-1 rounded border-current">
+                    {log.type}
+                  </span>
+                )}
+                <span className="opacity-40 mr-2 font-light text-[10px]">
                     {new Date(log.timestamp).toLocaleTimeString([], { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' })}
                 </span>
                 {log.content}

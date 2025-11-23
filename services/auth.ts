@@ -1,72 +1,89 @@
 import { User } from '../types';
 
-// Simulating a database table for users
-const USERS_STORAGE_KEY = 'js-master-users';
-const SESSION_KEY = 'js-master-session';
+const USERS_KEY = 'js_master_users_v2';
+const CURRENT_USER_KEY = 'js_master_current_user_v2';
 
-interface StoredUser extends User {
-  password: string; // In a real app, this would be a hash!
-}
+// Simple event emitter for auth state changes
+const listeners: ((user: User | null) => void)[] = [];
 
-const getUsers = (): StoredUser[] => {
-  const data = localStorage.getItem(USERS_STORAGE_KEY);
-  return data ? JSON.parse(data) : [];
-};
-
-const saveUsers = (users: StoredUser[]) => {
-  localStorage.setItem(USERS_STORAGE_KEY, JSON.stringify(users));
+const notifyListeners = (user: User | null) => {
+  listeners.forEach(l => l(user));
 };
 
 export const authService = {
   register: async (name: string, email: string, password: string): Promise<User> => {
-    // Simulate network delay
+    // Simulate API delay
     await new Promise(resolve => setTimeout(resolve, 800));
 
-    const users = getUsers();
-    if (users.find(u => u.email === email)) {
-      throw new Error("Email already exists");
+    const usersStr = localStorage.getItem(USERS_KEY);
+    const users: Record<string, any> = usersStr ? JSON.parse(usersStr) : {};
+
+    if (users[email]) {
+      throw new Error("User already exists with this email");
     }
 
-    const newUser: StoredUser = {
-      id: Math.random().toString(36).substring(2, 15),
+    const newUser: User = {
+      id: 'user_' + Math.random().toString(36).substring(2, 9),
       name,
       email,
-      password, // simple storage for demo only
       createdAt: Date.now()
     };
 
-    users.push(newUser);
-    saveUsers(users);
-    
+    // Save user credentials (simulated)
+    users[email] = { ...newUser, password }; // In a real app, never store plain text passwords
+    localStorage.setItem(USERS_KEY, JSON.stringify(users));
+
     // Auto login
-    localStorage.setItem(SESSION_KEY, JSON.stringify(newUser));
-    const { password: _, ...safeUser } = newUser;
-    return safeUser;
+    localStorage.setItem(CURRENT_USER_KEY, JSON.stringify(newUser));
+    notifyListeners(newUser);
+    
+    return newUser;
   },
 
   login: async (email: string, password: string): Promise<User> => {
     await new Promise(resolve => setTimeout(resolve, 800));
 
-    const users = getUsers();
-    const user = users.find(u => u.email === email && u.password === password);
+    const usersStr = localStorage.getItem(USERS_KEY);
+    const users: Record<string, any> = usersStr ? JSON.parse(usersStr) : {};
+    const user = users[email];
 
-    if (!user) {
-      throw new Error("Invalid credentials");
+    if (!user || user.password !== password) {
+      throw new Error("Invalid email or password");
     }
 
-    localStorage.setItem(SESSION_KEY, JSON.stringify(user));
     const { password: _, ...safeUser } = user;
+    localStorage.setItem(CURRENT_USER_KEY, JSON.stringify(safeUser));
+    notifyListeners(safeUser);
+
     return safeUser;
   },
 
-  logout: () => {
-    localStorage.removeItem(SESSION_KEY);
+  logout: async () => {
+    await new Promise(resolve => setTimeout(resolve, 200));
+    localStorage.removeItem(CURRENT_USER_KEY);
+    notifyListeners(null);
   },
 
-  getCurrentUser: (): User | null => {
-    const data = localStorage.getItem(SESSION_KEY);
-    if (!data) return null;
-    const { password, ...user } = JSON.parse(data);
-    return user;
+  // Subscribe to auth state changes
+  onAuthStateChange: (callback: (user: User | null) => void) => {
+    listeners.push(callback);
+    
+    // Check initial state
+    const stored = localStorage.getItem(CURRENT_USER_KEY);
+    if (stored) {
+      try {
+        callback(JSON.parse(stored));
+      } catch (e) {
+        callback(null);
+      }
+    } else {
+      callback(null);
+    }
+
+    // Return unsubscribe function
+    return () => {
+      const index = listeners.indexOf(callback);
+      if (index > -1) listeners.splice(index, 1);
+    };
   }
 };

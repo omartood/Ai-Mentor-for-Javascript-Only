@@ -1,66 +1,70 @@
 import { UserProgress } from '../types';
 import { CURRICULUM } from '../constants';
 
-const PROGRESS_KEY_PREFIX = 'js-master-progress-';
+const PROGRESS_KEY_PREFIX = 'js_master_progress_';
 
 export const dbService = {
-  // Load progress specific to a user ID
-  getUserProgress: (userId: string): UserProgress => {
-    const key = `${PROGRESS_KEY_PREFIX}${userId}`;
-    const data = localStorage.getItem(key);
-    if (data) {
-      return JSON.parse(data);
+  // Load progress specific to a user ID from LocalStorage
+  getUserProgress: async (userId: string): Promise<UserProgress> => {
+    await new Promise(resolve => setTimeout(resolve, 300)); // Simulate network
+    const key = PROGRESS_KEY_PREFIX + userId;
+    const stored = localStorage.getItem(key);
+    
+    if (stored) {
+      return JSON.parse(stored);
     }
-    return {
-      completedTopicIds: [],
-      quizScores: {}
-    };
+    
+    return { completedTopicIds: [], quizScores: {} };
+  },
+
+  // Helper to save
+  _saveProgress: (userId: string, data: UserProgress) => {
+    localStorage.setItem(PROGRESS_KEY_PREFIX + userId, JSON.stringify(data));
   },
 
   // Save topic completion
-  markTopicComplete: (userId: string, topicId: string) => {
-    const progress = dbService.getUserProgress(userId);
+  markTopicComplete: async (userId: string, topicId: string) => {
+    const progress = await dbService.getUserProgress(userId);
     if (!progress.completedTopicIds.includes(topicId)) {
       progress.completedTopicIds.push(topicId);
-      const key = `${PROGRESS_KEY_PREFIX}${userId}`;
-      localStorage.setItem(key, JSON.stringify(progress));
+      dbService._saveProgress(userId, progress);
     }
     return progress;
   },
 
   // Save quiz score
-  saveQuizScore: (userId: string, topicId: string, score: number) => {
-    const progress = dbService.getUserProgress(userId);
+  saveQuizScore: async (userId: string, topicId: string, score: number) => {
+    const progress = await dbService.getUserProgress(userId);
     
-    // Update completion status if not already there
+    // Update score
+    progress.quizScores[topicId] = score;
+    
+    // Auto complete if score > 0 (or some threshold, handled by UI logic mostly)
     if (!progress.completedTopicIds.includes(topicId)) {
       progress.completedTopicIds.push(topicId);
     }
     
-    // Save the score (keep the highest if already exists? For now just overwrite with latest attempt)
-    progress.quizScores[topicId] = score;
-    
-    const key = `${PROGRESS_KEY_PREFIX}${userId}`;
-    localStorage.setItem(key, JSON.stringify(progress));
+    dbService._saveProgress(userId, progress);
     return progress;
   },
 
   // Toggle completion (for manual override)
-  toggleTopicComplete: (userId: string, topicId: string) => {
-    const progress = dbService.getUserProgress(userId);
+  toggleTopicComplete: async (userId: string, topicId: string) => {
+    const progress = await dbService.getUserProgress(userId);
+    
     if (progress.completedTopicIds.includes(topicId)) {
       progress.completedTopicIds = progress.completedTopicIds.filter(id => id !== topicId);
     } else {
       progress.completedTopicIds.push(topicId);
     }
-    const key = `${PROGRESS_KEY_PREFIX}${userId}`;
-    localStorage.setItem(key, JSON.stringify(progress));
+    
+    dbService._saveProgress(userId, progress);
     return progress;
   },
 
   // Get Aggregated User Statistics
-  getUserStats: (userId: string) => {
-    const progress = dbService.getUserProgress(userId);
+  getUserStats: async (userId: string) => {
+    const progress = await dbService.getUserProgress(userId);
     
     // Flatten curriculum to get total topics count
     let totalTopics = 0;

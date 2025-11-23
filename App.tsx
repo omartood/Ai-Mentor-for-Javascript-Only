@@ -25,6 +25,7 @@ const App: React.FC = () => {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [authModalView, setAuthModalView] = useState<'login' | 'register'>('login');
+  const [authInitialized, setAuthInitialized] = useState(false);
   
   // Profile State
   const [isProfileOpen, setIsProfileOpen] = useState(false);
@@ -62,21 +63,34 @@ const App: React.FC = () => {
     scrollToBottom();
   }, [messages]);
 
-  // Check for existing session on load
+  // Check for existing session on load using Firebase Auth Listener
   useEffect(() => {
-    const user = authService.getCurrentUser();
-    if (user) {
-      setCurrentUser(user);
-      setShowLanding(false);
-      const progress = dbService.getUserProgress(user.id);
-      setCompletedTopics(progress.completedTopicIds);
-    }
+    const unsubscribe = authService.onAuthStateChange(async (user) => {
+      if (user) {
+        setCurrentUser(user);
+        setShowLanding(false);
+        // Async fetch progress from Firestore
+        try {
+          const progress = await dbService.getUserProgress(user.id);
+          setCompletedTopics(progress.completedTopicIds);
+        } catch (err) {
+          console.error("Failed to load progress", err);
+        }
+      } else {
+        setCurrentUser(null);
+        setShowLanding(true);
+        setCompletedTopics([]);
+      }
+      setAuthInitialized(true);
+    });
+
+    return () => unsubscribe();
   }, []);
 
   // Initialize Chat on App Start (Post-Login)
   useEffect(() => {
-    // Only initialize if we are NOT on the landing page
-    if (showLanding) return;
+    // Only initialize if we are NOT on the landing page and have a user
+    if (showLanding || !currentUser) return;
 
     if (!chatSession) {
       try {
@@ -84,7 +98,6 @@ const App: React.FC = () => {
         setChatSession(chat);
         
         // Auto-start with the first topic if none selected
-        // Only trigger this once when entering the app
         if (!currentTopic) {
            const firstTopic = CURRICULUM[0].topics[0];
            handleTopicSelect(firstTopic, chat);
@@ -95,17 +108,15 @@ const App: React.FC = () => {
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [showLanding]);
+  }, [showLanding, currentUser]);
 
-  const handleAuthSuccess = (user: User) => {
-    setCurrentUser(user);
-    const progress = dbService.getUserProgress(user.id);
-    setCompletedTopics(progress.completedTopicIds);
-    setShowLanding(false);
+  const handleAuthSuccess = async (user: User) => {
+    // Note: onAuthStateChange will handle state updates, but we can optimistically close modals here
+    setIsAuthModalOpen(false);
   };
 
-  const handleLogout = () => {
-    authService.logout();
+  const handleLogout = async () => {
+    await authService.logout();
     setCurrentUser(null);
     setShowLanding(true);
     setChatSession(null);
@@ -260,10 +271,14 @@ const App: React.FC = () => {
     }
   };
 
-  const toggleTopicCompletion = (topicId: string) => {
+  const toggleTopicCompletion = async (topicId: string) => {
     if (!currentUser) return;
-    const progress = dbService.toggleTopicComplete(currentUser.id, topicId);
-    setCompletedTopics([...progress.completedTopicIds]);
+    try {
+      const progress = await dbService.toggleTopicComplete(currentUser.id, topicId);
+      setCompletedTopics([...progress.completedTopicIds]);
+    } catch (e) {
+      console.error(e);
+    }
   };
 
   // Quiz Handlers
@@ -289,15 +304,23 @@ const App: React.FC = () => {
   };
 
   // Updated to accept score
-  const handleQuizPass = (score: number) => {
+  const handleQuizPass = async (score: number) => {
     if (currentTopic && currentUser) {
       // Save both completion AND score
-      const progress = dbService.saveQuizScore(currentUser.id, currentTopic.id, score);
-      setCompletedTopics([...progress.completedTopicIds]);
+      try {
+        const progress = await dbService.saveQuizScore(currentUser.id, currentTopic.id, score);
+        setCompletedTopics([...progress.completedTopicIds]);
+      } catch (e) {
+        console.error("Failed to save quiz score", e);
+      }
     }
   };
 
   const isCurrentTopicCompleted = currentTopic ? completedTopics.includes(currentTopic.id) : false;
+
+  if (!authInitialized) {
+      return <div className="min-h-screen bg-slate-950 flex items-center justify-center text-slate-400">Initializing App...</div>;
+  }
 
   return (
     <>
@@ -506,7 +529,7 @@ const App: React.FC = () => {
               transition-all duration-300
             `}>
               <CodeEditor 
-                onCloseMobile={() => setIsEditorOpen(false)} 
+                onClose={() => setIsEditorOpen(false)} 
                 isMaximized={isEditorMaximized}
                 onToggleMaximize={() => setIsEditorMaximized(!isEditorMaximized)}
                 initialCode={currentTopic?.practiceCode}

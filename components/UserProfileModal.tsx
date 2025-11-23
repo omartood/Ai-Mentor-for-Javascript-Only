@@ -20,10 +20,13 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({ user, isOpen, onClo
   } | null>(null);
 
   useEffect(() => {
-    if (isOpen && user) {
-      const userStats = dbService.getUserStats(user.id);
-      setStats(userStats);
-    }
+    const fetchStats = async () => {
+       if (isOpen && user) {
+          const userStats = await dbService.getUserStats(user.id);
+          setStats(userStats);
+       }
+    };
+    fetchStats();
   }, [isOpen, user]);
 
   if (!isOpen || !user) return null;

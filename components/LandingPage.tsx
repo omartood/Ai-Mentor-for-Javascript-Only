@@ -1,5 +1,6 @@
 import React from 'react';
-import { CodeIcon, BrainIcon, LayersIcon, ChevronRightIcon } from './Icons';
+import { CURRICULUM } from '../constants';
+import { CodeIcon, BrainIcon, LayersIcon, ChevronRightIcon, StarIcon, CheckCircleIcon, UserIcon } from './Icons';
 
 interface LandingPageProps {
   onLoginClick: () => void;
@@ -7,6 +8,13 @@ interface LandingPageProps {
 }
 
 const LandingPage: React.FC<LandingPageProps> = ({ onLoginClick, onRegisterClick }) => {
+  const scrollToSection = (id: string) => {
+    const element = document.getElementById(id);
+    if (element) {
+      element.scrollIntoView({ behavior: 'smooth' });
+    }
+  };
+
   return (
     <div className="min-h-screen bg-[#1e1e1e] text-slate-50 selection:bg-[#f7df1e]/30 font-sans overflow-x-hidden">
       {/* Navbar */}
@@ -19,9 +27,9 @@ const LandingPage: React.FC<LandingPageProps> = ({ onLoginClick, onRegisterClick
             <span className="text-lg font-bold tracking-tight text-white">JS Master</span>
           </div>
           <div className="hidden md:flex items-center gap-8 text-sm font-medium text-slate-400">
-            <a href="#features" className="hover:text-[#f7df1e] transition-colors">Features</a>
-            <a href="#curriculum" className="hover:text-[#f7df1e] transition-colors">Curriculum</a>
-            <a href="#reviews" className="hover:text-[#f7df1e] transition-colors">Success Stories</a>
+            <button onClick={() => scrollToSection('features')} className="hover:text-[#f7df1e] transition-colors">Features</button>
+            <button onClick={() => scrollToSection('curriculum')} className="hover:text-[#f7df1e] transition-colors">Curriculum</button>
+            <button onClick={() => scrollToSection('reviews')} className="hover:text-[#f7df1e] transition-colors">Success Stories</button>
           </div>
           <button 
             onClick={onLoginClick}
@@ -63,7 +71,10 @@ const LandingPage: React.FC<LandingPageProps> = ({ onLoginClick, onRegisterClick
                 Start Learning Free
                 <ChevronRightIcon className="w-5 h-5" />
               </button>
-              <button className="px-8 py-4 rounded-full bg-white/5 hover:bg-white/10 text-slate-200 font-semibold text-lg border border-white/10 transition-all">
+              <button 
+                onClick={() => scrollToSection('curriculum')}
+                className="px-8 py-4 rounded-full bg-white/5 hover:bg-white/10 text-slate-200 font-semibold text-lg border border-white/10 transition-all"
+              >
                 View Curriculum
               </button>
             </div>
@@ -157,7 +168,7 @@ const LandingPage: React.FC<LandingPageProps> = ({ onLoginClick, onRegisterClick
                <div className="w-12 h-12 rounded-xl bg-[#f7df1e]/10 flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
                 <LayersIcon className="w-6 h-6 text-[#f7df1e]" />
               </div>
-              <h3 className="text-xl font-bold text-white mb-3">Structured 8-Module Path</h3>
+              <h3 className="text-xl font-bold text-white mb-3">Structured Path</h3>
               <p className="text-slate-400 leading-relaxed">
                 Progress through locked modules. Master Foundations, DOM, OOP, and Async before moving forward.
               </p>
@@ -166,8 +177,142 @@ const LandingPage: React.FC<LandingPageProps> = ({ onLoginClick, onRegisterClick
         </div>
       </section>
 
+      {/* Curriculum Preview Section */}
+      <section id="curriculum" className="py-24 bg-[#1e1e1e] relative overflow-hidden">
+        {/* Background Decorations */}
+        <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-blue-500/5 rounded-full blur-[100px] -z-10" />
+        <div className="absolute bottom-0 left-0 w-[500px] h-[500px] bg-yellow-500/5 rounded-full blur-[100px] -z-10" />
+
+        <div className="max-w-7xl mx-auto px-6">
+          <div className="text-center mb-16">
+            <span className="text-[#f7df1e] font-bold tracking-wider uppercase text-sm">Course Roadmap</span>
+            <h2 className="text-3xl md:text-4xl font-bold text-white mt-3 mb-6">Comprehensive Curriculum</h2>
+            <p className="text-slate-400 max-w-2xl mx-auto">
+              Our 20-module path takes you deeper than any other course. Here is a sneak peek at what you will master.
+            </p>
+          </div>
+
+          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {CURRICULUM.slice(0, 6).map((module, idx) => (
+              <div key={module.id} className="bg-white/5 border border-white/5 rounded-xl p-6 hover:bg-white/10 transition-colors">
+                <div className="flex items-center justify-between mb-4">
+                  <span className="text-xs font-mono text-slate-500">Module {idx + 1}</span>
+                  {idx === 0 ? (
+                    <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-green-500/20 text-green-400 uppercase">Unlocked</span>
+                  ) : (
+                    <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-700 text-slate-400 uppercase">Locked</span>
+                  )}
+                </div>
+                <h3 className="text-lg font-bold text-white mb-3">{module.title.split(': ')[1]}</h3>
+                <ul className="space-y-2">
+                  {module.topics.slice(0, 3).map(topic => (
+                    <li key={topic.id} className="flex items-center gap-2 text-sm text-slate-400">
+                      <div className="w-1.5 h-1.5 rounded-full bg-[#f7df1e]" />
+                      <span className="truncate">{topic.title.split('. ')[1]}</span>
+                    </li>
+                  ))}
+                  {module.topics.length > 3 && (
+                     <li className="text-xs text-slate-500 italic pl-3.5">+ {module.topics.length - 3} more lessons</li>
+                  )}
+                </ul>
+              </div>
+            ))}
+          </div>
+          
+          <div className="mt-12 text-center">
+            <button 
+              onClick={onLoginClick}
+              className="inline-flex items-center gap-2 text-white font-medium border-b border-[#f7df1e] pb-0.5 hover:text-[#f7df1e] transition-colors"
+            >
+              View Full Syllabus inside App <ChevronRightIcon className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+      </section>
+
+      {/* Success Stories Section */}
+      <section id="reviews" className="py-24 bg-white/5 border-y border-white/5">
+        <div className="max-w-7xl mx-auto px-6">
+          <div className="text-center mb-16">
+            <h2 className="text-3xl md:text-4xl font-bold text-white mb-6">Success Stories</h2>
+            <p className="text-slate-400">Join a community of developers who changed their careers.</p>
+          </div>
+
+          <div className="grid md:grid-cols-3 gap-8">
+            {/* Story 1 */}
+            <div className="bg-[#1e1e1e] p-8 rounded-2xl border border-white/5 relative">
+              <div className="flex gap-1 mb-4">
+                {[1,2,3,4,5].map(i => (
+                  <React.Fragment key={i}>
+                    <StarIcon className="w-4 h-4 text-[#f7df1e]" />
+                  </React.Fragment>
+                ))}
+              </div>
+              <p className="text-slate-300 mb-6 leading-relaxed">
+                "I struggled with Closures and Promises for months. JS Master's AI explained it with an analogy that finally made it click. The practice mode is a game changer."
+              </p>
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-blue-500 to-purple-500 flex items-center justify-center text-white font-bold">
+                  S
+                </div>
+                <div>
+                  <div className="text-white font-bold text-sm">Sarah Jenkins</div>
+                  <div className="text-slate-500 text-xs">Frontend Dev @ TechCorp</div>
+                </div>
+              </div>
+            </div>
+
+            {/* Story 2 */}
+            <div className="bg-[#1e1e1e] p-8 rounded-2xl border border-white/5 relative">
+               <div className="flex gap-1 mb-4">
+                {[1,2,3,4,5].map(i => (
+                  <React.Fragment key={i}>
+                    <StarIcon className="w-4 h-4 text-[#f7df1e]" />
+                  </React.Fragment>
+                ))}
+              </div>
+              <p className="text-slate-300 mb-6 leading-relaxed">
+                "The curriculum is actually comprehensive. It doesn't skip the hard stuff like the Event Loop or Security. I feel much more confident in interviews now."
+              </p>
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-[#f7df1e] to-orange-500 flex items-center justify-center text-black font-bold">
+                  M
+                </div>
+                <div>
+                  <div className="text-white font-bold text-sm">Marcus Chen</div>
+                  <div className="text-slate-500 text-xs">Full Stack Engineer</div>
+                </div>
+              </div>
+            </div>
+
+            {/* Story 3 */}
+            <div className="bg-[#1e1e1e] p-8 rounded-2xl border border-white/5 relative">
+               <div className="flex gap-1 mb-4">
+                {[1,2,3,4,5].map(i => (
+                  <React.Fragment key={i}>
+                    <StarIcon className="w-4 h-4 text-[#f7df1e]" />
+                  </React.Fragment>
+                ))}
+              </div>
+              <p className="text-slate-300 mb-6 leading-relaxed">
+                "I love that I can ask the AI specifically about the code I just wrote in the playground. It's like having a senior engineer sitting next to me 24/7."
+              </p>
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-green-500 to-emerald-500 flex items-center justify-center text-white font-bold">
+                  A
+                </div>
+                <div>
+                  <div className="text-white font-bold text-sm">Alex Rodriguez</div>
+                  <div className="text-slate-500 text-xs">Freelance Developer</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
       {/* Stats / Trust */}
-      <section className="py-20 border-t border-white/10">
+      <section className="py-20 border-b border-white/10">
         <div className="max-w-7xl mx-auto px-6">
            <div className="grid grid-cols-2 md:grid-cols-4 gap-8 text-center">
               <div>
@@ -211,20 +356,34 @@ const LandingPage: React.FC<LandingPageProps> = ({ onLoginClick, onRegisterClick
 
       {/* Footer */}
       <footer className="py-12 bg-[#1e1e1e] border-t border-white/10">
-        <div className="max-w-7xl mx-auto px-6 flex flex-col md:flex-row justify-between items-center gap-6">
-          <div className="flex items-center gap-2">
-            <div className="p-1 bg-[#f7df1e] rounded shadow">
-              <span className="text-black font-bold font-mono text-xs px-0.5">JS</span>
+        <div className="max-w-7xl mx-auto px-6">
+          <div className="flex flex-col md:flex-row justify-between items-center gap-6 mb-8">
+            <div className="flex items-center gap-2">
+              <div className="p-1 bg-[#f7df1e] rounded shadow">
+                <span className="text-black font-bold font-mono text-xs px-0.5">JS</span>
+              </div>
+              <span className="font-bold text-slate-200">JS Master</span>
             </div>
-            <span className="font-bold text-slate-200">JS Master</span>
+            <div className="text-slate-500 text-sm">
+              &copy; {new Date().getFullYear()} JS Master AI. Powered by Google Gemini.
+            </div>
+            <div className="flex gap-6 text-slate-500">
+              <a href="#" className="hover:text-[#f7df1e] transition-colors">Privacy</a>
+              <a href="#" className="hover:text-[#f7df1e] transition-colors">Terms</a>
+              <a href="#" className="hover:text-[#f7df1e] transition-colors">Twitter</a>
+            </div>
           </div>
-          <div className="text-slate-500 text-sm">
-            &copy; {new Date().getFullYear()} JS Master AI. Powered by Google Gemini.
-          </div>
-          <div className="flex gap-6 text-slate-500">
-             <a href="#" className="hover:text-[#f7df1e] transition-colors">Privacy</a>
-             <a href="#" className="hover:text-[#f7df1e] transition-colors">Terms</a>
-             <a href="#" className="hover:text-[#f7df1e] transition-colors">Twitter</a>
+          
+          {/* Creator Attribution */}
+          <div className="border-t border-white/10 pt-8 text-center">
+            <p className="text-slate-500 text-sm flex items-center justify-center gap-2">
+              Designed & Built with <span className="text-red-500">❤</span> by 
+              <span className="text-white font-medium flex items-center gap-1.5">
+                <UserIcon className="w-4 h-4 text-[#f7df1e]" />
+                Omar Tood
+              </span>
+              <span className="px-2 py-0.5 bg-white/5 rounded-full text-xs text-slate-400">AI Engineer</span>
+            </p>
           </div>
         </div>
       </footer>

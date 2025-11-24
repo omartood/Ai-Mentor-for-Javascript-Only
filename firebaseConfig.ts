@@ -2,23 +2,22 @@ import { initializeApp } from "firebase/app";
 import { getAuth } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
 
-// TODO: Replace with your actual Firebase project configuration
-// You can get this from the Firebase Console -> Project Settings -> General
+// Configuration loaded from Environment Variables
 const firebaseConfig = {
-  apiKey: "YOUR_API_KEY_HERE",
-  authDomain: "your-project-id.firebaseapp.com",
-  projectId: "your-project-id",
-  storageBucket: "your-project-id.appspot.com",
-  messagingSenderId: "123456789",
-  appId: "1:123456789:web:abcdef123456"
+  apiKey: process.env.FIREBASE_API_KEY,
+  authDomain: process.env.FIREBASE_AUTH_DOMAIN,
+  projectId: process.env.FIREBASE_PROJECT_ID,
+  storageBucket: process.env.FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: process.env.FIREBASE_MESSAGING_SENDER_ID,
+  appId: process.env.FIREBASE_APP_ID
 };
 
-// Simple check to warn developers if they haven't set up Firebase yet
-if (firebaseConfig.apiKey === "YOUR_API_KEY_HERE") {
+// Simple check to warn developers if keys are missing
+if (!process.env.FIREBASE_API_KEY) {
   console.warn(
     "%c FIREBASE CONFIG MISSING ", 
     "background: red; color: white; font-weight: bold; padding: 4px;",
-    "Please update firebaseConfig.ts with your actual Firebase project details to use Auth and Database features."
+    "Please update your .env file with valid Firebase credentials to use the Database and Auth features."
   );
 }
 

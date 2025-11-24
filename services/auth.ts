@@ -1,89 +1,129 @@
+
+import { supabase } from '../supabaseClient';
 import { User } from '../types';
 
-const USERS_KEY = 'js_master_users_v2';
-const CURRENT_USER_KEY = 'js_master_current_user_v2';
+// Fallback Constants
+const STORAGE_USERS_KEY = 'js_master_users';
+const STORAGE_SESSION_KEY = 'js_master_session';
 
-// Simple event emitter for auth state changes
-const listeners: ((user: User | null) => void)[] = [];
-
-const notifyListeners = (user: User | null) => {
-  listeners.forEach(l => l(user));
+// Helper to map Supabase user to our App's User type
+const mapUser = (sbUser: any): User | null => {
+  if (!sbUser) return null;
+  return {
+    id: sbUser.id,
+    email: sbUser.email || '',
+    name: sbUser.user_metadata?.full_name || sbUser.email?.split('@')[0] || 'User',
+    createdAt: new Date(sbUser.created_at).getTime()
+  };
 };
 
 export const authService = {
   register: async (name: string, email: string, password: string): Promise<User> => {
-    // Simulate API delay
-    await new Promise(resolve => setTimeout(resolve, 800));
+    // --- Fallback Mode ---
+    if (!supabase) {
+      const usersStr = localStorage.getItem(STORAGE_USERS_KEY);
+      const users: any[] = usersStr ? JSON.parse(usersStr) : [];
+      
+      if (users.find((u: any) => u.email === email)) {
+        throw new Error("User already exists (Local Mode)");
+      }
 
-    const usersStr = localStorage.getItem(USERS_KEY);
-    const users: Record<string, any> = usersStr ? JSON.parse(usersStr) : {};
-
-    if (users[email]) {
-      throw new Error("User already exists with this email");
+      const newUser = {
+        id: 'local-' + Date.now(),
+        name,
+        email,
+        password, // Note: Insecure for real apps, acceptable for local fallback
+        createdAt: Date.now()
+      };
+      
+      users.push(newUser);
+      localStorage.setItem(STORAGE_USERS_KEY, JSON.stringify(users));
+      
+      // Auto login
+      localStorage.setItem(STORAGE_SESSION_KEY, JSON.stringify(newUser));
+      return { id: newUser.id, name: newUser.name, email: newUser.email, createdAt: newUser.createdAt };
     }
 
-    const newUser: User = {
-      id: 'user_' + Math.random().toString(36).substring(2, 9),
-      name,
+    // --- Supabase Mode ---
+    const { data, error } = await supabase.auth.signUp({
       email,
-      createdAt: Date.now()
-    };
+      password,
+      options: {
+        data: {
+          full_name: name,
+        },
+      },
+    });
 
-    // Save user credentials (simulated)
-    users[email] = { ...newUser, password }; // In a real app, never store plain text passwords
-    localStorage.setItem(USERS_KEY, JSON.stringify(users));
+    if (error) throw new Error(error.message);
+    if (!data.user) throw new Error("Registration failed");
 
-    // Auto login
-    localStorage.setItem(CURRENT_USER_KEY, JSON.stringify(newUser));
-    notifyListeners(newUser);
-    
-    return newUser;
+    return mapUser(data.user)!;
   },
 
   login: async (email: string, password: string): Promise<User> => {
-    await new Promise(resolve => setTimeout(resolve, 800));
+    // --- Fallback Mode ---
+    if (!supabase) {
+      const usersStr = localStorage.getItem(STORAGE_USERS_KEY);
+      const users: any[] = usersStr ? JSON.parse(usersStr) : [];
+      const user = users.find((u: any) => u.email === email && u.password === password);
 
-    const usersStr = localStorage.getItem(USERS_KEY);
-    const users: Record<string, any> = usersStr ? JSON.parse(usersStr) : {};
-    const user = users[email];
-
-    if (!user || user.password !== password) {
-      throw new Error("Invalid email or password");
+      if (!user) throw new Error("Invalid credentials (Local Mode)");
+      
+      const userObj = { id: user.id, name: user.name, email: user.email, createdAt: user.createdAt };
+      localStorage.setItem(STORAGE_SESSION_KEY, JSON.stringify(userObj));
+      return userObj;
     }
 
-    const { password: _, ...safeUser } = user;
-    localStorage.setItem(CURRENT_USER_KEY, JSON.stringify(safeUser));
-    notifyListeners(safeUser);
+    // --- Supabase Mode ---
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    });
 
-    return safeUser;
+    if (error) throw new Error(error.message);
+    if (!data.user) throw new Error("Login failed");
+
+    return mapUser(data.user)!;
   },
 
   logout: async () => {
-    await new Promise(resolve => setTimeout(resolve, 200));
-    localStorage.removeItem(CURRENT_USER_KEY);
-    notifyListeners(null);
+    // --- Fallback Mode ---
+    if (!supabase) {
+      localStorage.removeItem(STORAGE_SESSION_KEY);
+      return;
+    }
+
+    // --- Supabase Mode ---
+    const { error } = await supabase.auth.signOut();
+    if (error) throw error;
   },
 
   // Subscribe to auth state changes
   onAuthStateChange: (callback: (user: User | null) => void) => {
-    listeners.push(callback);
-    
-    // Check initial state
-    const stored = localStorage.getItem(CURRENT_USER_KEY);
-    if (stored) {
-      try {
-        callback(JSON.parse(stored));
-      } catch (e) {
+    // --- Fallback Mode ---
+    if (!supabase) {
+      const sessionStr = localStorage.getItem(STORAGE_SESSION_KEY);
+      if (sessionStr) {
+        callback(JSON.parse(sessionStr));
+      } else {
         callback(null);
       }
-    } else {
-      callback(null);
+      // No real-time subscription for local storage in this simple implementation
+      return () => {};
     }
 
-    // Return unsubscribe function
+    // --- Supabase Mode ---
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      callback(session ? mapUser(session.user) : null);
+    });
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      callback(session ? mapUser(session.user) : null);
+    });
+
     return () => {
-      const index = listeners.indexOf(callback);
-      if (index > -1) listeners.splice(index, 1);
+      subscription.unsubscribe();
     };
   }
 };

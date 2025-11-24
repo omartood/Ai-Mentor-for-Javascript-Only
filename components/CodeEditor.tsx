@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { PlayIcon, TrashIcon, MaximizeIcon, MinimizeIcon, RefreshIcon } from './Icons';
+import { PlayIcon, TrashIcon, MaximizeIcon, MinimizeIcon, RefreshIcon, EnterFullScreenIcon, ExitFullScreenIcon } from './Icons';
 
 interface LogEntry {
   type: 'log' | 'error' | 'warn';
@@ -11,6 +11,8 @@ interface CodeEditorProps {
   onClose?: () => void;
   isMaximized?: boolean;
   onToggleMaximize?: () => void;
+  isFullScreen?: boolean;
+  onToggleFullScreen?: () => void;
   initialCode?: string;
 }
 
@@ -35,6 +37,8 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
   onClose, 
   isMaximized = false, 
   onToggleMaximize,
+  isFullScreen = false,
+  onToggleFullScreen,
   initialCode 
 }) => {
   const [code, setCode] = useState(DEFAULT_CODE);
@@ -164,15 +168,28 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
              <RefreshIcon className="w-4 h-4" />
            </button>
            
-           {onToggleMaximize && (
+           {/* Split View Toggle (Desktop Only) */}
+           {onToggleMaximize && !isFullScreen && (
              <button 
                onClick={onToggleMaximize}
                className="p-1.5 text-slate-400 hover:text-white hidden md:block"
-               title={isMaximized ? "Minimize" : "Maximize"}
+               title={isMaximized ? "Restore Split" : "Expand Split"}
              >
                {isMaximized ? <MinimizeIcon className="w-4 h-4" /> : <MaximizeIcon className="w-4 h-4" />}
              </button>
            )}
+
+           {/* Full Screen Toggle */}
+           {onToggleFullScreen && (
+             <button 
+               onClick={onToggleFullScreen}
+               className="p-1.5 text-slate-400 hover:text-white"
+               title={isFullScreen ? "Exit Full Screen" : "Full Screen"}
+             >
+               {isFullScreen ? <ExitFullScreenIcon className="w-4 h-4" /> : <EnterFullScreenIcon className="w-4 h-4" />}
+             </button>
+           )}
+
            <button 
             onClick={handleRun}
             className="flex items-center gap-1.5 px-3 py-1.5 bg-green-600 hover:bg-green-500 text-white rounded text-xs font-medium transition-colors shadow-lg shadow-green-900/20"
@@ -180,7 +197,7 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
             <PlayIcon className="w-3 h-3" />
             Run
           </button>
-           {onClose && (
+           {onClose && !isFullScreen && (
             <button 
               onClick={onClose}
               className="ml-2 px-3 py-1.5 text-slate-400 hover:text-white hover:bg-slate-700 rounded text-xs transition-colors"

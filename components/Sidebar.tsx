@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { CURRICULUM } from '../constants';
-import { Topic, CurriculumModule } from '../types';
+import { Topic, CurriculumModule, SubModule } from '../types';
 import { BookIcon, CheckCircleIcon, LockIcon, ChevronRightIcon } from './Icons';
 
 interface SidebarProps {
@@ -20,15 +20,22 @@ const Sidebar: React.FC<SidebarProps> = ({
 }) => {
   const [expandedModuleIds, setExpandedModuleIds] = useState<string[]>([]);
 
+  // Helper to find the module containing a topic ID
+  const findModuleIdByTopic = (topicId: string) => {
+    return CURRICULUM.find(m => 
+      m.subModules.some(s => s.topics.some(t => t.id === topicId))
+    )?.id;
+  };
+
   // Auto-expand the module containing the current topic
   useEffect(() => {
     if (currentTopicId) {
-      const activeModule = CURRICULUM.find(m => m.topics.some(t => t.id === currentTopicId));
-      if (activeModule) {
+      const activeModuleId = findModuleIdByTopic(currentTopicId);
+      if (activeModuleId) {
         setExpandedModuleIds(prev => {
           // Ensure we don't duplicate IDs
           const newSet = new Set(prev);
-          newSet.add(activeModule.id);
+          newSet.add(activeModuleId);
           return Array.from(newSet);
         });
       }
@@ -83,7 +90,9 @@ const Sidebar: React.FC<SidebarProps> = ({
             let isLocked = false;
             if (index > 0) {
               const prevModule = CURRICULUM[index - 1];
-              const isPrevModuleComplete = prevModule.topics.every(t => completedTopicIds.includes(t.id));
+              // Flatten all topics in previous module
+              const prevModuleTopics = prevModule.subModules.flatMap(s => s.topics);
+              const isPrevModuleComplete = prevModuleTopics.every(t => completedTopicIds.includes(t.id));
               if (!isPrevModuleComplete) {
                 isLocked = true;
               }
@@ -109,47 +118,56 @@ const Sidebar: React.FC<SidebarProps> = ({
                 {/* Collapsible Content */}
                 <div 
                   className={`
-                    space-y-1 relative overflow-hidden transition-all duration-300 ease-in-out
-                    ${isExpanded ? 'max-h-[1000px] opacity-100' : 'max-h-0 opacity-0'}
+                    space-y-4 relative overflow-hidden transition-all duration-300 ease-in-out
+                    ${isExpanded ? 'max-h-[2000px] opacity-100' : 'max-h-0 opacity-0'}
                   `}
                 >
                   {isLocked && (
                     <div className="absolute inset-0 z-10 cursor-not-allowed bg-black/5" title="Complete previous module to unlock" />
                   )}
                   
-                  {module.topics.map((topic) => {
-                    const isActive = currentTopicId === topic.id;
-                    const isCompleted = completedTopicIds.includes(topic.id);
-                    
-                    return (
-                      <button
-                        key={topic.id}
-                        disabled={isLocked}
-                        onClick={() => {
-                          if (!isLocked) {
-                            onSelectTopic(topic);
-                            onCloseMobile();
-                          }
-                        }}
-                        className={`
-                          w-full text-left px-3 py-2.5 pl-9 rounded-lg text-sm transition-all duration-200
-                          flex items-center justify-between group border border-transparent
-                          ${isActive 
-                            ? 'bg-[#f7df1e]/10 text-[#f7df1e] border-[#f7df1e]/20' 
-                            : 'text-slate-400 hover:bg-slate-800 hover:text-slate-200'
-                          }
-                          ${isLocked ? 'cursor-not-allowed hover:bg-transparent hover:text-slate-500' : ''}
-                        `}
-                      >
-                        <span className={`truncate ${isCompleted && !isActive ? 'text-slate-500' : ''}`}>
-                          {topic.title}
-                        </span>
-                        {isCompleted && (
-                          <CheckCircleIcon className="w-4 h-4 text-green-500 flex-shrink-0 ml-2" />
-                        )}
-                      </button>
-                    );
-                  })}
+                  {module.subModules.map((subModule: SubModule, subIndex: number) => (
+                    <div key={subIndex} className="pl-4">
+                      <h4 className="px-3 mb-1 text-[10px] font-bold text-slate-600 uppercase tracking-wider">
+                        {subModule.title}
+                      </h4>
+                      <div className="space-y-1">
+                        {subModule.topics.map((topic) => {
+                          const isActive = currentTopicId === topic.id;
+                          const isCompleted = completedTopicIds.includes(topic.id);
+                          
+                          return (
+                            <button
+                              key={topic.id}
+                              disabled={isLocked}
+                              onClick={() => {
+                                if (!isLocked) {
+                                  onSelectTopic(topic);
+                                  onCloseMobile();
+                                }
+                              }}
+                              className={`
+                                w-full text-left px-3 py-2.5 rounded-lg text-sm transition-all duration-200
+                                flex items-center justify-between group border border-transparent
+                                ${isActive 
+                                  ? 'bg-[#f7df1e]/10 text-[#f7df1e] border-[#f7df1e]/20' 
+                                  : 'text-slate-400 hover:bg-slate-800 hover:text-slate-200'
+                                }
+                                ${isLocked ? 'cursor-not-allowed hover:bg-transparent hover:text-slate-500' : ''}
+                              `}
+                            >
+                              <span className={`truncate ${isCompleted && !isActive ? 'text-slate-500' : ''}`}>
+                                {topic.title}
+                              </span>
+                              {isCompleted && (
+                                <CheckCircleIcon className="w-4 h-4 text-green-500 flex-shrink-0 ml-2" />
+                              )}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ))}
                 </div>
               </div>
             );

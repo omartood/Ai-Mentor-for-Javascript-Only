@@ -1,5 +1,7 @@
 {
   "name": "JS Master: AI Mentor",
   "description": "An interactive AI-powered mentorship platform designed to teach JavaScript from beginner to advanced levels using structured modules and real-time explanations.",
-  "requestFramePermissions": []
+  "requestFramePermissions": [
+    "microphone"
+  ]
 }

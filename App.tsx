@@ -12,7 +12,8 @@ import QuizModal from './components/QuizModal';
 import LandingPage from './components/LandingPage';
 import AuthModal from './components/AuthModal';
 import UserProfileModal from './components/UserProfileModal';
-import { SendIcon, MenuIcon, RefreshIcon, CodeIcon, AcademicCapIcon, CheckCircleIcon, CheckIcon, UserIcon } from './components/Icons';
+import VoiceTutor from './components/VoiceTutor';
+import { SendIcon, MenuIcon, RefreshIcon, CodeIcon, AcademicCapIcon, CheckCircleIcon, CheckIcon, UserIcon, HeadphonesIcon } from './components/Icons';
 
 // Helper to generate a unique ID
 const generateId = () => Math.random().toString(36).substring(2, 9);
@@ -44,12 +45,16 @@ const App: React.FC = () => {
   // Editor State
   const [isEditorOpen, setIsEditorOpen] = useState(false);
   const [isEditorMaximized, setIsEditorMaximized] = useState(false);
+  const [isEditorFullScreen, setIsEditorFullScreen] = useState(false);
 
   // Quiz State
   const [isQuizOpen, setIsQuizOpen] = useState(false);
   const [isQuizLoading, setIsQuizLoading] = useState(false);
   const [quizQuestions, setQuizQuestions] = useState<QuizQuestion[]>([]);
   
+  // Voice State
+  const [isVoiceTutorOpen, setIsVoiceTutorOpen] = useState(false);
+
   // Refs
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -98,9 +103,12 @@ const App: React.FC = () => {
         setChatSession(chat);
         
         // Auto-start with the first topic if none selected
-        if (!currentTopic) {
-           const firstTopic = CURRICULUM[0].topics[0];
-           handleTopicSelect(firstTopic, chat);
+        if (!currentTopic && CURRICULUM.length > 0) {
+           const firstModule = CURRICULUM[0];
+           if (firstModule.subModules.length > 0 && firstModule.subModules[0].topics.length > 0) {
+             const firstTopic = firstModule.subModules[0].topics[0];
+             handleTopicSelect(firstTopic, chat);
+           }
         }
       } catch (e) {
         console.error("Failed to init chat", e);
@@ -322,6 +330,24 @@ const App: React.FC = () => {
       return <div className="min-h-screen bg-slate-950 flex items-center justify-center text-slate-400">Initializing App...</div>;
   }
 
+  // Determine Editor Container Classes
+  const getEditorContainerClass = () => {
+    if (!isEditorOpen) return 'hidden';
+    
+    // Full Screen Mode: Covers everything, fixed position, high z-index
+    if (isEditorFullScreen) {
+      return 'fixed inset-0 z-[100] flex w-screen h-screen bg-[#1e1e1e] animate-in fade-in duration-300';
+    }
+    
+    // Split View Maximize: Covers only the content area (chat), absolute position
+    if (isEditorMaximized) {
+      return 'absolute inset-0 z-20 flex w-full';
+    }
+    
+    // Default Split View: Takes 70% width on desktop
+    return 'absolute inset-0 md:relative md:flex md:w-[70%] z-20';
+  };
+
   return (
     <>
       <AuthModal 
@@ -336,6 +362,12 @@ const App: React.FC = () => {
         onClose={() => setIsProfileOpen(false)}
         user={currentUser}
         onLogout={handleLogout}
+      />
+
+      {/* Voice Tutor Modal/Overlay */}
+      <VoiceTutor 
+        isOpen={isVoiceTutorOpen}
+        onClose={() => setIsVoiceTutorOpen(false)}
       />
 
       {showLanding ? (
@@ -428,6 +460,14 @@ const App: React.FC = () => {
                       {isCurrentTopicCompleted ? <CheckCircleIcon className="w-5 h-5" /> : <CheckIcon className="w-5 h-5" />}
                     </button>
                   )}
+
+                  <button 
+                    onClick={() => setIsVoiceTutorOpen(true)}
+                    className="p-2 text-slate-400 hover:text-[#f7df1e] hover:bg-slate-800 rounded-full transition-colors hidden sm:block"
+                    title="Start Voice Session"
+                  >
+                    <HeadphonesIcon className="w-5 h-5" />
+                  </button>
 
                   <button 
                     onClick={handleRestartTopic}
@@ -523,15 +563,15 @@ const App: React.FC = () => {
 
             {/* Editor Section */}
             <div className={`
-              ${isEditorOpen 
-                ? (isEditorMaximized ? 'absolute inset-0 z-20 flex w-full' : 'absolute inset-0 md:relative md:flex md:w-[70%] z-20') 
-                : 'hidden'}
-              transition-all duration-300
+               ${getEditorContainerClass()}
+               transition-all duration-300
             `}>
               <CodeEditor 
                 onClose={() => setIsEditorOpen(false)} 
                 isMaximized={isEditorMaximized}
                 onToggleMaximize={() => setIsEditorMaximized(!isEditorMaximized)}
+                isFullScreen={isEditorFullScreen}
+                onToggleFullScreen={() => setIsEditorFullScreen(!isEditorFullScreen)}
                 initialCode={currentTopic?.practiceCode}
               />
             </div>

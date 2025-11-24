@@ -193,30 +193,37 @@ const LandingPage: React.FC<LandingPageProps> = ({ onLoginClick, onRegisterClick
           </div>
 
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {CURRICULUM.slice(0, 6).map((module, idx) => (
-              <div key={module.id} className="bg-white/5 border border-white/5 rounded-xl p-6 hover:bg-white/10 transition-colors">
-                <div className="flex items-center justify-between mb-4">
-                  <span className="text-xs font-mono text-slate-500">Module {idx + 1}</span>
-                  {idx === 0 ? (
-                    <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-green-500/20 text-green-400 uppercase">Unlocked</span>
-                  ) : (
-                    <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-700 text-slate-400 uppercase">Locked</span>
-                  )}
+            {CURRICULUM.slice(0, 6).map((module, idx) => {
+               // Flatten topics for preview
+               const allTopics = module.subModules.flatMap(s => s.topics);
+               const totalTopics = allTopics.length;
+               const previewTopics = allTopics.slice(0, 3);
+
+               return (
+                <div key={module.id} className="bg-white/5 border border-white/5 rounded-xl p-6 hover:bg-white/10 transition-colors">
+                  <div className="flex items-center justify-between mb-4">
+                    <span className="text-xs font-mono text-slate-500">Module {idx + 1}</span>
+                    {idx === 0 ? (
+                      <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-green-500/20 text-green-400 uppercase">Unlocked</span>
+                    ) : (
+                      <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-700 text-slate-400 uppercase">Locked</span>
+                    )}
+                  </div>
+                  <h3 className="text-lg font-bold text-white mb-3">{module.title.split(': ')[1]}</h3>
+                  <ul className="space-y-2">
+                    {previewTopics.map(topic => (
+                      <li key={topic.id} className="flex items-center gap-2 text-sm text-slate-400">
+                        <div className="w-1.5 h-1.5 rounded-full bg-[#f7df1e]" />
+                        <span className="truncate">{topic.title.split('. ')[1]}</span>
+                      </li>
+                    ))}
+                    {totalTopics > 3 && (
+                       <li className="text-xs text-slate-500 italic pl-3.5">+ {totalTopics - 3} more lessons</li>
+                    )}
+                  </ul>
                 </div>
-                <h3 className="text-lg font-bold text-white mb-3">{module.title.split(': ')[1]}</h3>
-                <ul className="space-y-2">
-                  {module.topics.slice(0, 3).map(topic => (
-                    <li key={topic.id} className="flex items-center gap-2 text-sm text-slate-400">
-                      <div className="w-1.5 h-1.5 rounded-full bg-[#f7df1e]" />
-                      <span className="truncate">{topic.title.split('. ')[1]}</span>
-                    </li>
-                  ))}
-                  {module.topics.length > 3 && (
-                     <li className="text-xs text-slate-500 italic pl-3.5">+ {module.topics.length - 3} more lessons</li>
-                  )}
-                </ul>
-              </div>
-            ))}
+              );
+            })}
           </div>
           
           <div className="mt-12 text-center">

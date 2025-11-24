@@ -14,10 +14,15 @@ export interface Topic {
   practiceCode?: string;
 }
 
+export interface SubModule {
+  title: string;
+  topics: Topic[];
+}
+
 export interface CurriculumModule {
   id: string;
   title: string;
-  topics: Topic[];
+  subModules: SubModule[];
 }
 
 export interface QuizQuestion {

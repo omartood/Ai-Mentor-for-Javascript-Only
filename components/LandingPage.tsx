@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { CURRICULUM } from '../constants';
 import { CodeIcon, BrainIcon, LayersIcon, ChevronRightIcon, StarIcon, CheckCircleIcon, UserIcon } from './Icons';
@@ -29,6 +30,7 @@ const LandingPage: React.FC<LandingPageProps> = ({ onLoginClick, onRegisterClick
           <div className="hidden md:flex items-center gap-8 text-sm font-medium text-slate-400">
             <button onClick={() => scrollToSection('features')} className="hover:text-[#f7df1e] transition-colors">Features</button>
             <button onClick={() => scrollToSection('curriculum')} className="hover:text-[#f7df1e] transition-colors">Curriculum</button>
+            <button onClick={() => scrollToSection('creator')} className="hover:text-[#f7df1e] transition-colors">Team</button>
             <button onClick={() => scrollToSection('reviews')} className="hover:text-[#f7df1e] transition-colors">Success Stories</button>
           </div>
           <button 
@@ -237,8 +239,42 @@ const LandingPage: React.FC<LandingPageProps> = ({ onLoginClick, onRegisterClick
         </div>
       </section>
 
+      {/* Team / Creator Section */}
+      <section id="creator" className="py-24 bg-white/5 border-t border-white/5">
+        <div className="max-w-7xl mx-auto px-6 text-center">
+           <div className="text-center mb-16">
+            <h2 className="text-3xl md:text-4xl font-bold text-white mb-6">Meet the Team</h2>
+            <p className="text-slate-400">Passionate engineers dedicated to democratizing software education.</p>
+          </div>
+           <div className="flex justify-center">
+             <div className="bg-[#1e1e1e] p-8 rounded-2xl border border-white/5 max-w-md w-full hover:border-[#f7df1e]/30 transition-all group hover:-translate-y-1">
+                {/* Profile Image - Points to local file in public folder */}
+                <div className="w-32 h-32 rounded-full bg-slate-800 mx-auto mb-6 border-4 border-[#f7df1e] flex items-center justify-center overflow-hidden shadow-lg shadow-yellow-500/20 relative group-hover:scale-105 transition-transform duration-300">
+                   <img 
+                     src="/omar.png" 
+                     alt="Omar Tood" 
+                     className="w-full h-full object-cover" 
+                   />
+                   <div className="absolute inset-0 bg-[#f7df1e]/10 group-hover:bg-transparent transition-colors" />
+                </div>
+                
+                <h3 className="text-2xl font-bold text-white mb-1">Omar Tood</h3>
+                <p className="text-[#f7df1e] text-sm font-bold uppercase tracking-wide mb-6">Lead AI Engineer</p>
+                <p className="text-slate-400 leading-relaxed mb-6">
+                   Full-stack developer with a passion for Artificial Intelligence. Built JS Master to bridge the gap between static documentation and interactive mentorship, helping thousands master the language of the web.
+                </p>
+                <div className="flex justify-center gap-4 border-t border-white/5 pt-6">
+                   <a href="#" className="text-slate-500 hover:text-white transition-colors text-sm font-medium">Twitter</a>
+                   <a href="#" className="text-slate-500 hover:text-white transition-colors text-sm font-medium">GitHub</a>
+                   <a href="#" className="text-slate-500 hover:text-white transition-colors text-sm font-medium">LinkedIn</a>
+                </div>
+             </div>
+           </div>
+        </div>
+      </section>
+
       {/* Success Stories Section */}
-      <section id="reviews" className="py-24 bg-white/5 border-y border-white/5">
+      <section id="reviews" className="py-24 bg-[#1e1e1e] border-t border-white/5">
         <div className="max-w-7xl mx-auto px-6">
           <div className="text-center mb-16">
             <h2 className="text-3xl md:text-4xl font-bold text-white mb-6">Success Stories</h2>
@@ -247,7 +283,7 @@ const LandingPage: React.FC<LandingPageProps> = ({ onLoginClick, onRegisterClick
 
           <div className="grid md:grid-cols-3 gap-8">
             {/* Story 1 */}
-            <div className="bg-[#1e1e1e] p-8 rounded-2xl border border-white/5 relative">
+            <div className="bg-white/5 p-8 rounded-2xl border border-white/5 relative">
               <div className="flex gap-1 mb-4">
                 {[1,2,3,4,5].map(i => (
                   <React.Fragment key={i}>
@@ -270,7 +306,7 @@ const LandingPage: React.FC<LandingPageProps> = ({ onLoginClick, onRegisterClick
             </div>
 
             {/* Story 2 */}
-            <div className="bg-[#1e1e1e] p-8 rounded-2xl border border-white/5 relative">
+            <div className="bg-white/5 p-8 rounded-2xl border border-white/5 relative">
                <div className="flex gap-1 mb-4">
                 {[1,2,3,4,5].map(i => (
                   <React.Fragment key={i}>
@@ -293,7 +329,7 @@ const LandingPage: React.FC<LandingPageProps> = ({ onLoginClick, onRegisterClick
             </div>
 
             {/* Story 3 */}
-            <div className="bg-[#1e1e1e] p-8 rounded-2xl border border-white/5 relative">
+            <div className="bg-white/5 p-8 rounded-2xl border border-white/5 relative">
                <div className="flex gap-1 mb-4">
                 {[1,2,3,4,5].map(i => (
                   <React.Fragment key={i}>

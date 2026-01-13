@@ -1,3 +1,4 @@
+
 import { GoogleGenAI, Chat, GenerateContentResponse, LiveServerMessage, Modality, Blob } from "@google/genai";
 import { INITIAL_SYSTEM_INSTRUCTION } from '../constants';
 import { QuizQuestion } from "../types";
@@ -89,6 +90,66 @@ export const generateQuizForTopic = async (topicTitle: string): Promise<QuizQues
   }
 };
 
+export const generatePuzzle = async (topicTitle: string) => {
+  const ai = getAI();
+  const prompt = `
+    Create a "Bug Fix" or "Logic Challenge" coding puzzle for the JavaScript topic: "${topicTitle}".
+    
+    Structure the response as a valid JSON object (NO markdown formatting):
+    {
+      "title": "Short catchy title (e.g., 'Broken Loop')",
+      "instructions": "Clear task description. Example: 'Fix the function to return the sum of array.'",
+      "initialCode": "The broken or starter code string.",
+      "validationCheck": "A JavaScript expression that assumes the user's code has run. It must return TRUE if correct, or throw an error/return false if wrong."
+    }
+
+    Validation Check Details:
+    - Assume the user's code defines variables or functions.
+    - You can write a test like: \`myFunction(5) === 10\`.
+    - If the user needs to log something, you cannot easily check that, so prefer function return values or variable states.
+    - Example Validation: "if (typeof add !== 'function') throw 'Function missing'; if (add(1,1) !== 2) throw '1+1 should be 2'; return true;"
+  `;
+
+  try {
+    const response = await ai.models.generateContent({
+      model: 'gemini-2.5-flash',
+      contents: prompt,
+      config: { temperature: 0.5, responseMimeType: "application/json" }
+    });
+
+    const text = response.text || '{}';
+    return JSON.parse(text);
+  } catch (error) {
+    console.error("Error generating puzzle:", error);
+    throw error;
+  }
+};
+
+export const evaluateReflection = async (topicTitle: string, userReflection: string): Promise<string> => {
+  const ai = getAI();
+  const prompt = `
+    The user has just completed a lesson on "${topicTitle}" and was asked to explain it in their own words.
+    
+    User Reflection: "${userReflection}"
+    
+    Provide a concise, encouraging evaluation (max 2-3 sentences).
+    - If they are correct, praise them and maybe add one cool detail they missed.
+    - If they are incorrect or vague, gently correct them and clarify the main point.
+    - Use a friendly "Mentor" tone.
+  `;
+  
+  try {
+    const response = await ai.models.generateContent({
+      model: 'gemini-2.5-flash',
+      contents: prompt,
+      config: { temperature: 0.7 }
+    });
+    return response.text || "Good job! Keep practicing.";
+  } catch (e) {
+    return "Great effort! Connection issue prevented detailed feedback, but keep going!";
+  }
+};
+
 // --- Live API Audio Utils ---
 
 function decode(base64: string) {
@@ -162,8 +223,8 @@ export const connectLiveSession = async (
     stream = await navigator.mediaDevices.getUserMedia({ audio: true });
   } catch (err) {
     console.error("Microphone access denied", err);
-    onClose();
-    return null;
+    onClose(); // Trigger close to handle error state in UI
+    throw err; // Re-throw to be caught by caller
   }
 
   const sessionPromise = ai.live.connect({
@@ -178,48 +239,47 @@ export const connectLiveSession = async (
     callbacks: {
       onopen: () => {
         console.log("Live session opened");
-        // Start streaming mic input
+        // Stream audio from the microphone to the model.
         const source = inputAudioContext.createMediaStreamSource(stream!);
         const scriptProcessor = inputAudioContext.createScriptProcessor(4096, 1, 1);
-        
         scriptProcessor.onaudioprocess = (audioProcessingEvent) => {
           const inputData = audioProcessingEvent.inputBuffer.getChannelData(0);
           const pcmBlob = createBlob(inputData);
-          
+          // CRITICAL: Solely rely on sessionPromise resolves and then call `session.sendRealtimeInput`
           sessionPromise.then((session) => {
             session.sendRealtimeInput({ media: pcmBlob });
           });
         };
-        
         source.connect(scriptProcessor);
         scriptProcessor.connect(inputAudioContext.destination);
       },
       onmessage: async (message: LiveServerMessage) => {
-        const base64Audio = message.serverContent?.modelTurn?.parts?.[0]?.inlineData?.data;
-        if (base64Audio) {
+        const base64EncodedAudioString =
+          message.serverContent?.modelTurn?.parts[0]?.inlineData.data;
+        if (base64EncodedAudioString) {
           const audioBuffer = await decodeAudioData(
-            decode(base64Audio),
+            decode(base64EncodedAudioString),
             decodeCtx,
             24000,
-            1
+            1,
           );
           onAudioData(audioBuffer);
         }
-        
-        if (message.serverContent?.interrupted) {
+
+        const interrupted = message.serverContent?.interrupted;
+        if (interrupted) {
           console.log("Model interrupted");
-          // Handle interruption (clear queues in UI)
         }
       },
-      onclose: () => {
-        console.log("Live session closed");
+      onerror: (e: ErrorEvent) => {
+        console.error('got error', e);
         onClose();
       },
-      onerror: (err) => {
-        console.error("Live session error", err);
+      onclose: (e: CloseEvent) => {
+        console.log('closed', e);
         onClose();
-      }
-    }
+      },
+    },
   });
 
   return {

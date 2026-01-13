@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { User } from '../types';
 import { dbService } from '../services/db';
-import { UserIcon, ChartBarIcon, CalendarIcon, TrophyIcon, BrainIcon } from './Icons';
+import { UserIcon, ChartBarIcon, CalendarIcon, TrophyIcon, BrainIcon, FireIcon } from './Icons';
 
 interface UserProfileModalProps {
   user: User | null;
@@ -17,6 +17,8 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({ user, isOpen, onClo
     percentage: number;
     averageScore: number;
     totalQuizzesTaken: number;
+    currentStreak: number;
+    longestStreak: number;
   } | null>(null);
 
   useEffect(() => {
@@ -59,8 +61,8 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({ user, isOpen, onClo
         {/* Body */}
         <div className="pt-16 px-8 pb-8">
           {/* Account Info Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
-            <div className="bg-slate-900/50 p-4 rounded-xl border border-slate-700/50">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+            <div className="bg-slate-900/50 p-4 rounded-xl border border-slate-700/50 col-span-2 md:col-span-2">
               <div className="flex items-center gap-2 text-slate-400 mb-2 text-sm font-medium uppercase tracking-wide">
                 <ChartBarIcon className="w-4 h-4 text-blue-400" />
                 Global Progress
@@ -76,27 +78,38 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({ user, isOpen, onClo
               </div>
             </div>
 
+            <div className="bg-slate-900/50 p-4 rounded-xl border border-slate-700/50 col-span-2 md:col-span-2">
+               <div className="flex items-center gap-2 text-slate-400 mb-2 text-sm font-medium uppercase tracking-wide">
+                <FireIcon className="w-4 h-4 text-orange-500" />
+                Learning Streak
+              </div>
+              <div className="flex items-end gap-2">
+                 <div className="text-3xl font-bold text-white">{stats?.currentStreak || 0}</div>
+                 <div className="text-xs text-slate-500 mb-1">Days</div>
+              </div>
+              <div className="text-xs text-slate-500 mt-1">
+                 Best: <span className="text-orange-400 font-bold">{stats?.longestStreak || 0}</span> days
+              </div>
+            </div>
+
             <div className="bg-slate-900/50 p-4 rounded-xl border border-slate-700/50">
               <div className="flex items-center gap-2 text-slate-400 mb-2 text-sm font-medium uppercase tracking-wide">
                 <TrophyIcon className="w-4 h-4 text-[#f7df1e]" />
-                Topics Mastered
+                Mastered
               </div>
               <div className="flex items-baseline gap-1">
-                <span className="text-3xl font-bold text-white">{stats?.completedCount || 0}</span>
-                <span className="text-sm text-slate-500">/ {stats?.totalTopics || 0}</span>
+                <span className="text-2xl font-bold text-white">{stats?.completedCount || 0}</span>
+                <span className="text-xs text-slate-500">Topics</span>
               </div>
             </div>
 
             <div className="bg-slate-900/50 p-4 rounded-xl border border-slate-700/50">
               <div className="flex items-center gap-2 text-slate-400 mb-2 text-sm font-medium uppercase tracking-wide">
                 <BrainIcon className="w-4 h-4 text-purple-400" />
-                Avg. Quiz Score
+                Avg. Score
               </div>
-              <div className="text-3xl font-bold text-white">
+              <div className="text-2xl font-bold text-white">
                 {stats?.averageScore || 0}%
-              </div>
-              <div className="text-xs text-slate-500 mt-1">
-                Across {stats?.totalQuizzesTaken || 0} quizzes
               </div>
             </div>
           </div>

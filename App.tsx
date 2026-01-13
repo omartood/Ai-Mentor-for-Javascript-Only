@@ -1,3 +1,4 @@
+
 import React, { useState, useRef, useEffect } from 'react';
 import { Chat } from "@google/genai";
 import { createMentorChat, sendMessageStream, generateQuizForTopic } from './services/gemini';
@@ -13,7 +14,9 @@ import LandingPage from './components/LandingPage';
 import AuthModal from './components/AuthModal';
 import UserProfileModal from './components/UserProfileModal';
 import VoiceTutor from './components/VoiceTutor';
-import { SendIcon, MenuIcon, RefreshIcon, CodeIcon, AcademicCapIcon, CheckCircleIcon, CheckIcon, UserIcon, HeadphonesIcon } from './components/Icons';
+import CheckInModal from './components/CheckInModal';
+import PuzzleGameModal from './components/PuzzleGameModal';
+import { SendIcon, MenuIcon, RefreshIcon, CodeIcon, AcademicCapIcon, CheckCircleIcon, CheckIcon, UserIcon, HeadphonesIcon, FireIcon, GamepadIcon } from './components/Icons';
 
 // Helper to generate a unique ID
 const generateId = () => Math.random().toString(36).substring(2, 9);
@@ -41,6 +44,7 @@ const App: React.FC = () => {
   
   // Progress State
   const [completedTopics, setCompletedTopics] = useState<string[]>([]);
+  const [currentStreak, setCurrentStreak] = useState(0);
 
   // Editor State
   const [isEditorOpen, setIsEditorOpen] = useState(false);
@@ -54,6 +58,12 @@ const App: React.FC = () => {
   
   // Voice State
   const [isVoiceTutorOpen, setIsVoiceTutorOpen] = useState(false);
+
+  // Check-In State
+  const [isCheckInOpen, setIsCheckInOpen] = useState(false);
+
+  // Puzzle Game State
+  const [isPuzzleOpen, setIsPuzzleOpen] = useState(false);
 
   // Refs
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -74,10 +84,12 @@ const App: React.FC = () => {
       if (user) {
         setCurrentUser(user);
         setShowLanding(false);
-        // Async fetch progress from Firestore
+        // Async fetch progress
         try {
-          const progress = await dbService.getUserProgress(user.id);
+          // Check streak on load
+          const progress = await dbService.checkAndUpdateStreak(user.id);
           setCompletedTopics(progress.completedTopicIds);
+          setCurrentStreak(progress.currentStreak || 0);
         } catch (err) {
           console.error("Failed to load progress", err);
         }
@@ -85,6 +97,7 @@ const App: React.FC = () => {
         setCurrentUser(null);
         setShowLanding(true);
         setCompletedTopics([]);
+        setCurrentStreak(0);
       }
       setAuthInitialized(true);
     });
@@ -119,8 +132,19 @@ const App: React.FC = () => {
   }, [showLanding, currentUser]);
 
   const handleAuthSuccess = async (user: User) => {
-    // Note: onAuthStateChange will handle state updates, but we can optimistically close modals here
+    // Manually set state for quick feedback in fallback mode
+    setCurrentUser(user);
+    setShowLanding(false);
     setIsAuthModalOpen(false);
+    
+    // Fetch progress
+    try {
+      const progress = await dbService.checkAndUpdateStreak(user.id);
+      setCompletedTopics(progress.completedTopicIds);
+      setCurrentStreak(progress.currentStreak || 0);
+    } catch (err) {
+       // Ignore
+    }
   };
 
   const handleLogout = async () => {
@@ -130,6 +154,7 @@ const App: React.FC = () => {
     setChatSession(null);
     setMessages([]);
     setCompletedTopics([]);
+    setCurrentStreak(0);
     setIsProfileOpen(false);
   };
 
@@ -279,11 +304,36 @@ const App: React.FC = () => {
     }
   };
 
+  const triggerCheckInIfNeeded = (updatedTopics: string[], currentTopicId: string) => {
+    // Find the module this topic belongs to
+    const currentModule = CURRICULUM.find(m => 
+      m.subModules.some(s => s.topics.some(t => t.id === currentTopicId))
+    );
+    
+    if (!currentModule) return;
+
+    // Flatten all topics in this module to get the IDs
+    const moduleTopicIds = currentModule.subModules.flatMap(s => s.topics.map(t => t.id));
+    
+    // Count how many of THESE topics are completed
+    const completedInModule = moduleTopicIds.filter(id => updatedTopics.includes(id)).length;
+    
+    // If multiple of 3, trigger check-in
+    if (completedInModule > 0 && completedInModule % 3 === 0) {
+      setIsCheckInOpen(true);
+    }
+  };
+
   const toggleTopicCompletion = async (topicId: string) => {
     if (!currentUser) return;
     try {
       const progress = await dbService.toggleTopicComplete(currentUser.id, topicId);
       setCompletedTopics([...progress.completedTopicIds]);
+      
+      // Only trigger if we just COMPLETED it (it's now in the list)
+      if (progress.completedTopicIds.includes(topicId)) {
+        triggerCheckInIfNeeded(progress.completedTopicIds, topicId);
+      }
     } catch (e) {
       console.error(e);
     }
@@ -318,6 +368,9 @@ const App: React.FC = () => {
       try {
         const progress = await dbService.saveQuizScore(currentUser.id, currentTopic.id, score);
         setCompletedTopics([...progress.completedTopicIds]);
+        
+        // Trigger Check-In Logic
+        triggerCheckInIfNeeded(progress.completedTopicIds, currentTopic.id);
       } catch (e) {
         console.error("Failed to save quiz score", e);
       }
@@ -369,6 +422,24 @@ const App: React.FC = () => {
         isOpen={isVoiceTutorOpen}
         onClose={() => setIsVoiceTutorOpen(false)}
       />
+
+      {/* Reflective Check-In Modal */}
+      {isCheckInOpen && currentTopic && (
+        <CheckInModal 
+          isOpen={isCheckInOpen}
+          topicTitle={currentTopic.title}
+          onClose={() => setIsCheckInOpen(false)}
+        />
+      )}
+
+      {/* Puzzle Game Modal */}
+      {isPuzzleOpen && currentTopic && (
+        <PuzzleGameModal 
+          isOpen={isPuzzleOpen}
+          topicTitle={currentTopic.title}
+          onClose={() => setIsPuzzleOpen(false)}
+        />
+      )}
 
       {showLanding ? (
         <LandingPage 
@@ -439,6 +510,12 @@ const App: React.FC = () => {
                          <span className="text-slate-500 group-hover:text-slate-300">Logged in as</span>
                          <span className="text-[#f7df1e] font-medium">{currentUser?.name}</span>
                       </button>
+                      
+                      {/* Streak Indicator */}
+                      <div className="hidden sm:flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-orange-900/20 border border-orange-500/20 text-orange-400">
+                        <FireIcon className="w-3.5 h-3.5" />
+                        <span className="text-xs font-bold">{currentStreak}</span>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -477,6 +554,17 @@ const App: React.FC = () => {
                   >
                     <RefreshIcon className="w-5 h-5" />
                   </button>
+                  
+                  {/* Game Button */}
+                  {currentTopic && (
+                    <button
+                      onClick={() => setIsPuzzleOpen(true)}
+                      className="p-2 text-slate-400 hover:text-[#f7df1e] hover:bg-slate-800 rounded-full transition-colors hidden sm:block"
+                      title="Play Debug Game"
+                    >
+                      <GamepadIcon className="w-5 h-5" />
+                    </button>
+                  )}
 
                   <button
                     onClick={handleOpenQuiz}

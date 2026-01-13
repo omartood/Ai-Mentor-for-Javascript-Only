@@ -50,4 +50,7 @@ export interface User {
 export interface UserProgress {
   completedTopicIds: string[];
   quizScores: Record<string, number>; // topicId -> score
+  currentStreak: number;
+  longestStreak: number;
+  lastActivityDate: number | null; // Timestamp
 }
